@@ -1,9 +1,8 @@
-module spotify.test;
+export module spotify.test;
 
-namespace spotify
+import echterwachter;
+
+export namespace spotify
 {
-    int add()
-    {
-        return 42;
-    }
+    int add();
 }

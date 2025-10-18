@@ -11,9 +11,9 @@ FetchContent_MakeAvailable(DPP)
 target_sources(echterwachter
         PUBLIC
         FILE_SET CXX_MODULES FILES
-            echterwachter.ixx
-        PRIVATE
             echterwachter.cppm
+        PRIVATE
+            echterwachter.cpp
 )
 
 target_link_libraries(echterwachter PUBLIC dpp)

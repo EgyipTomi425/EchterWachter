@@ -1,9 +1,8 @@
-module youtube.test;
+export module youtube.test;
 
-namespace yt
+import echterwachter;
+
+export namespace yt
 {
-    int add()
-    {
-        return 42;
-    }
+    int add();
 }
