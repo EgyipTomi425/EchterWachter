@@ -4,13 +4,13 @@ module;
 #include <cstdlib>
 #include <string>
 #include <iostream>
-#include <csignal>
 
 export module echterwachter;
 
 export int bot_add();
-
 export inline int magic_number = bot_add();
+
+export inline std::vector<dpp::slashcommand> commands;
 
 export void start_bot();
 

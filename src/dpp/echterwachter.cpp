@@ -20,18 +20,29 @@ void start_bot()
 
     bot.on_slashcommand([](const dpp::slashcommand_t& event)
     {
-        if (event.command.get_command_name() == "ping") {
+        if (event.command.get_command_name() == "ping")
+        {
             event.reply("Pong!");
+        }
+
+        for (auto& cmd : commands)
+        {
+            if (event.command.get_command_name() == cmd.name)
+            {
+                event.reply("Command executed: " + cmd.name);
+            }
         }
     });
 
-    bot.on_ready([](const dpp::ready_t& event)
+    if (dpp::run_once<struct register_bot_commands>())
     {
-        if (dpp::run_once<struct register_bot_commands>())
+        bot.global_command_create(dpp::slashcommand("ping", "Ping pong!", bot.me.id));
+
+        for (auto& cmd : commands)
         {
-            bot.global_command_create(dpp::slashcommand("ping", "Ping pong!", bot.me.id));
+            bot.global_command_create(cmd);
         }
-    });
+    }
 
     bot.start(dpp::st_wait);
 }
