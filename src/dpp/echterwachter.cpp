@@ -3,6 +3,8 @@ module;
 #include <dpp/dpp.h>
 #include <random>
 #include <functional>
+#include <unordered_map>
+#include <utility>
 
 module echterwachter;
 
@@ -51,6 +53,55 @@ void register_commands()
                 bot.global_command_create(bc.cmd);
 }
 
+template<typename Name, typename Desc, typename Func, typename... Rest>
+std::unordered_map<std::string, std::function<void(const dpp::slashcommand_t&)>>
+add_subcommands(dpp::slashcommand& parent, Name&& name, Desc&& desc, Func&& func, Rest&&... rest)
+{
+    static_assert(sizeof...(Rest) % 3 == 0, "Each subcommand must have: name, description, callback");
+
+    std::unordered_map<std::string, std::function<void(const dpp::slashcommand_t&)>> routes;
+
+    auto add_one = [&]<typename T0>(auto&& n, auto&& d, T0&& f)
+    {
+        dpp::command_option opt(dpp::co_sub_command, n, d);
+        parent.add_option(opt);
+        routes[n] = std::forward<T0>(f);
+    };
+
+    add_one(std::forward<Name>(name), std::forward<Desc>(desc), std::forward<Func>(func));
+
+    if constexpr (sizeof...(Rest) > 0)
+    {
+        auto rest_routes = add_subcommands(parent, std::forward<Rest>(rest)...);
+        routes.insert(rest_routes.begin(), rest_routes.end());
+    }
+
+    return routes;
+}
+
+std::function<void(const dpp::slashcommand_t&)>
+make_router(const std::unordered_map<std::string, std::function<void(const dpp::slashcommand_t&)>>& routes)
+{
+    return [routes](const dpp::slashcommand_t& event)
+    {
+        auto cmd_data = event.command.get_command_interaction();
+
+        if (cmd_data.options.empty())
+        {
+            event.reply("No subcommand given!");
+            return;
+        }
+
+        auto sub = cmd_data.options[0];
+        auto it = routes.find(sub.name);
+
+        if (it != routes.end())
+            it->second(event);
+        else
+            event.reply("Unknown subcommand: " + sub.name);
+    };
+}
+
 // Just for testing inline functions
 int bot_add()
 {
@@ -63,64 +114,39 @@ int bot_add()
 void register_examples()
 {
     // Ping global
-    add_command(BotCommand(
+    add_command(BotCommand
+    (
         dpp::slashcommand("ping", "Pong - Global", bot.me.id),
         std::nullopt,
         ping
     ));
 
     // Ping local
-    add_command(BotCommand(
+    add_command(BotCommand
+    (
         dpp::slashcommand("ping-local", "Pong - Local", bot.me.id),
         dpp::snowflake(807705567463604284),
         ping_local
     ));
 
     // Ping group
-    dpp::slashcommand ping_group("ping-group", "Ping group commands", bot.me.id);
+    {
+        dpp::slashcommand ping_group("ping-group", "Ping group commands", bot.me.id);
 
-    dpp::command_option ping_cmd(dpp::co_sub_command, "ping", "Ping command");
-    dpp::command_option pong_cmd(dpp::co_sub_command, "pong", "Pong command");
-    pong_cmd.add_option(dpp::command_option(dpp::co_integer, "number1", "First number", true));
-    pong_cmd.add_option(dpp::command_option(dpp::co_integer, "number2", "Second number", true));
+        auto routes = add_subcommands
+        (
+            ping_group,
+            "ping", "Ping command", ping_group_ping,
+            "pong", "Pong command", ping_group_pong
+        );
 
-    ping_group.add_option(ping_cmd);
-    ping_group.add_option(pong_cmd);
-
-    add_command(BotCommand
-    (
-        ping_group,
-        std::nullopt,
-        [](const dpp::slashcommand_t& event)
-        {
-            dpp::command_interaction cmd_data = event.command.get_command_interaction();
-
-            if (cmd_data.options.empty()) {
-                event.reply("No subcommand given!");
-                return;
-            }
-
-            auto subcommand = cmd_data.options[0]; // subcommand
-
-            if (subcommand.name == "ping") {
-                ping_group_ping(event);
-            }
-            else if (subcommand.name == "pong") {
-                // Extract parameters safely
-                if (subcommand.options.size() >= 2) {
-                    long number1 = subcommand.get_value<long>(0);
-                    long number2 = subcommand.get_value<long>(1);
-
-                    event.reply("Sum: " + std::to_string(number1 + number2));
-                } else {
-                    event.reply("Missing parameters for pong subcommand!");
-                }
-            }
-            else {
-                event.reply("Unknown subcommand");
-            }
-        }
-    ));
+        add_command(BotCommand
+        (
+            ping_group,
+            std::nullopt, // You can use guild here
+            make_router(routes)
+        ));
+    }
 }
 
 void ping(const dpp::slashcommand_t& event)

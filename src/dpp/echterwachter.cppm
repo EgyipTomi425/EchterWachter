@@ -5,6 +5,7 @@ module;
 #include <string>
 #include <iostream>
 #include <functional>
+#include <unordered_map>
 
 export module echterwachter;
 
@@ -21,6 +22,13 @@ export struct BotCommand
         std::function<void(const dpp::slashcommand_t&)> cb = nullptr
     ) : cmd(c), guild_id(gid), callback(cb) {}
 };
+
+export template<typename Name, typename Desc, typename Func, typename... Rest>
+std::unordered_map<std::string, std::function<void(const dpp::slashcommand_t&)>>
+add_subcommands(dpp::slashcommand& parent, Name&& name, Desc&& desc, Func&& func, Rest&&... rest);
+
+export std::function<void(const dpp::slashcommand_t&)>
+make_router(const std::unordered_map<std::string, std::function<void(const dpp::slashcommand_t&)>>& routes);
 
 inline std::vector<BotCommand> commands;
 void add_command(const BotCommand& bc);
