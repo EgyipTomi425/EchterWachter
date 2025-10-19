@@ -2,12 +2,13 @@ module;
 
 #include <dpp/dpp.h>
 #include <random>
+#include <functional>
 
 module echterwachter;
 
-void add_command(const dpp::slashcommand& cmd, std::optional<dpp::snowflake> guild_id = std::nullopt)
+void add_command(const BotCommand& bc)
 {
-    commands.emplace_back(cmd, guild_id);
+    commands.emplace_back(bc);
 }
 
 void start_bot(bool register_new_commands)
@@ -18,9 +19,18 @@ void start_bot(bool register_new_commands)
 
     bot.on_slashcommand([](const dpp::slashcommand_t& event)
     {
-        for (auto &cmd: commands | std::views::keys)
-            if (event.command.get_command_name() == cmd.name)
-                event.reply("Command executed: " + cmd.name);
+        for (auto &bc : commands)
+            if (event.command.get_command_name() == bc.cmd.name)
+            {
+                if (bc.callback)
+                {
+                    bc.callback(event);
+                }
+                else
+                {
+                    event.reply("Command registered, but implementation not found: " + bc.cmd.name);
+                }
+            }
     });
 
     if (register_new_commands)
@@ -34,11 +44,11 @@ void start_bot(bool register_new_commands)
 void register_commands()
 {
     if (dpp::run_once<struct register_bot_commands>())
-        for (auto& [cmd, guild_id] : commands)
-            if (guild_id.has_value())
-                bot.guild_command_create(cmd, *guild_id);
+        for (auto& bc : commands)
+            if (bc.guild_id.has_value())
+                bot.guild_command_create(bc.cmd, *bc.guild_id);
             else
-                bot.global_command_create(cmd);
+                bot.global_command_create(bc.cmd);
 }
 
 // Just for testing inline functions
@@ -52,21 +62,92 @@ int bot_add()
 
 void register_examples()
 {
-    add_command(dpp::slashcommand("ping", "Pong - Global", bot.me.id));
-    add_command(dpp::slashcommand("ping-local", "Pong - Local", bot.me.id), dpp::snowflake(807705567463604284));
+    // Ping global
+    add_command(BotCommand(
+        dpp::slashcommand("ping", "Pong - Global", bot.me.id),
+        std::nullopt,
+        ping
+    ));
 
-    {   // Using subcommands example
-        dpp::slashcommand ping_group("ping-group", "Ping group commands", bot.me.id);
+    // Ping local
+    add_command(BotCommand(
+        dpp::slashcommand("ping-local", "Pong - Local", bot.me.id),
+        dpp::snowflake(807705567463604284),
+        ping_local
+    ));
 
-        dpp::command_option ping_cmd(dpp::co_sub_command, "ping", "Ping command");
+    // Ping group
+    dpp::slashcommand ping_group("ping-group", "Ping group commands", bot.me.id);
 
-        dpp::command_option pong_cmd(dpp::co_sub_command, "pong", "Pong command");
-        pong_cmd.add_option(dpp::command_option(dpp::co_integer, "number1", "First number", true));
-        pong_cmd.add_option(dpp::command_option(dpp::co_integer, "number2", "Second number", true));
+    dpp::command_option ping_cmd(dpp::co_sub_command, "ping", "Ping command");
+    dpp::command_option pong_cmd(dpp::co_sub_command, "pong", "Pong command");
+    pong_cmd.add_option(dpp::command_option(dpp::co_integer, "number1", "First number", true));
+    pong_cmd.add_option(dpp::command_option(dpp::co_integer, "number2", "Second number", true));
 
-        ping_group.add_option(ping_cmd);
-        ping_group.add_option(pong_cmd);
+    ping_group.add_option(ping_cmd);
+    ping_group.add_option(pong_cmd);
 
-        add_command(ping_group); // dpp::snowflake(807705567463604284) as second parameter if you want add only your server.
-    }
+    add_command(BotCommand
+    (
+        ping_group,
+        std::nullopt,
+        [](const dpp::slashcommand_t& event)
+        {
+            dpp::command_interaction cmd_data = event.command.get_command_interaction();
+
+            if (cmd_data.options.empty()) {
+                event.reply("No subcommand given!");
+                return;
+            }
+
+            auto subcommand = cmd_data.options[0]; // subcommand
+
+            if (subcommand.name == "ping") {
+                ping_group_ping(event);
+            }
+            else if (subcommand.name == "pong") {
+                // Extract parameters safely
+                if (subcommand.options.size() >= 2) {
+                    long number1 = subcommand.get_value<long>(0);
+                    long number2 = subcommand.get_value<long>(1);
+
+                    event.reply("Sum: " + std::to_string(number1 + number2));
+                } else {
+                    event.reply("Missing parameters for pong subcommand!");
+                }
+            }
+            else {
+                event.reply("Unknown subcommand");
+            }
+        }
+    ));
+}
+
+void ping(const dpp::slashcommand_t& event)
+{
+    event.reply("Pong!");
+}
+
+void ping_local(const dpp::slashcommand_t& event)
+{
+    event.reply("Local Pong!");
+}
+
+void ping_group_ping(const dpp::slashcommand_t& event)
+{
+    event.reply("Ping from group!");
+}
+
+void ping_group_pong(const dpp::slashcommand_t& event)
+{
+    auto param1 = event.get_parameter("number1");
+    auto param2 = event.get_parameter("number2");
+
+    auto p1 = std::get_if<long>(&param1);
+    auto p2 = std::get_if<long>(&param2);
+
+    if (p1 != nullptr && p2 != nullptr)
+        event.reply("Sum: " + std::to_string(*p1 + *p2));
+    else
+        event.reply("Invalid parameters, expected numbers.");
 }
