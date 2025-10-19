@@ -24,6 +24,7 @@ export inline dpp::cluster bot([]
     return dpp::cluster(token);
 }());
 
-// Just for testing
+// Just for testing inline functions
 export int bot_add();
 export inline int magic_number = bot_add();
+void register_examples();
