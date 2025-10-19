@@ -19,7 +19,7 @@ int main()
 
     std::cout << "MAGIC_NUMBER: " << magic_number << std::endl;
 
-    start_bot();
+    start_bot(false);
 
     return 0;
 }
