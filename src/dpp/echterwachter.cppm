@@ -15,11 +15,11 @@ export struct BotCommand
     std::optional<dpp::snowflake> guild_id;
     std::function<void(const dpp::slashcommand_t&)> callback;
 
-    BotCommand
+    explicit BotCommand
     (
         const dpp::slashcommand& c,
         std::optional<dpp::snowflake> gid = std::nullopt,
-        std::function<void(const dpp::slashcommand_t&)> cb = nullptr
+        const std::function<void(const dpp::slashcommand_t&)> &cb = nullptr
     ) : cmd(c), guild_id(gid), callback(cb) {}
 };
 
@@ -31,7 +31,7 @@ export std::function<void(const dpp::slashcommand_t&)>
 make_router(const std::unordered_map<std::string, std::function<void(const dpp::slashcommand_t&)>>& routes);
 
 inline std::vector<BotCommand> commands;
-void add_command(const BotCommand& bc);
+export void add_command(const BotCommand& bc);
 export void start_bot(bool register_new_commands = false);
 void register_commands();
 export inline dpp::cluster bot([]
@@ -46,6 +46,46 @@ export inline dpp::cluster bot([]
     return dpp::cluster(token);
 }());
 
+struct CommandGroup
+{
+    dpp::slashcommand cmd;
+    std::unordered_map<std::string, std::function<void(const dpp::slashcommand_t&)>> routes;
+    std::optional<dpp::snowflake> guild_id;
+    bool registered = false;
+
+    CommandGroup(const std::string& name, const std::string& desc, std::optional<dpp::snowflake> gid = std::nullopt)
+        : cmd(name, desc, bot.me.id), guild_id(gid) {}
+
+    template<typename Name, typename Desc, typename Func, typename... Rest>
+    void add(Name&& name, Desc&& desc, Func&& func, Rest&&... rest)
+    {
+        auto new_routes = add_subcommands(cmd,
+                                          std::forward<Name>(name),
+                                          std::forward<Desc>(desc),
+                                          std::forward<Func>(func),
+                                          std::forward<Rest>(rest)...);
+        routes.insert
+        (
+            std::make_move_iterator(new_routes.begin()),
+            std::make_move_iterator(new_routes.end())
+        );
+    }
+
+    void register_commands()
+    {
+        if (registered) return;
+        add_command(BotCommand(cmd, guild_id, make_router(routes)));
+        registered = true;
+    }
+
+    void clear()
+    {
+        routes.clear();
+        cmd.options.clear();
+        registered = false;
+    }
+};
+
 // Just for testing inline functions
 export int bot_add();
 export inline int magic_number = bot_add();
@@ -54,4 +94,6 @@ void register_examples();
 void ping(const dpp::slashcommand_t& event);
 void ping_local(const dpp::slashcommand_t& event);
 void ping_group_ping(const dpp::slashcommand_t& event);
-void ping_group_pong(const dpp::slashcommand_t& event);
+void ping_group_add(const dpp::slashcommand_t& event);
+void ping_group_multiply(const dpp::slashcommand_t& event);
+void ping_group_square(const dpp::slashcommand_t& event);

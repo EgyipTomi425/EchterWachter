@@ -131,21 +131,21 @@ void register_examples()
 
     // Ping group
     {
-        dpp::slashcommand ping_group("ping-group", "Ping group commands", bot.me.id);
+        CommandGroup ping_group("ping-group", "Ping group commands");
 
-        auto routes = add_subcommands
+        ping_group.add
         (
-            ping_group,
             "ping", "Ping command", ping_group_ping,
-            "pong", "Pong command", ping_group_pong
+            "add", "Adding 2 numbers", ping_group_add
         );
 
-        add_command(BotCommand
+        ping_group.add
         (
-            ping_group,
-            std::nullopt, // You can use guild here
-            make_router(routes)
-        ));
+            "multiply", "Multiply 2 numbers", ping_group_multiply,
+            "square", "Square a number", ping_group_square
+        );
+
+        ping_group.register_commands();
     }
 }
 
@@ -164,7 +164,7 @@ void ping_group_ping(const dpp::slashcommand_t& event)
     event.reply("Ping from group!");
 }
 
-void ping_group_pong(const dpp::slashcommand_t& event)
+void ping_group_add(const dpp::slashcommand_t& event)
 {
     auto param1 = event.get_parameter("number1");
     auto param2 = event.get_parameter("number2");
@@ -176,4 +176,28 @@ void ping_group_pong(const dpp::slashcommand_t& event)
         event.reply("Sum: " + std::to_string(*p1 + *p2));
     else
         event.reply("Invalid parameters, expected numbers.");
+}
+
+void ping_group_multiply(const dpp::slashcommand_t& event)
+{
+    auto param1 = event.get_parameter("number1");
+    auto param2 = event.get_parameter("number2");
+
+    auto p1 = std::get_if<long>(&param1);
+    auto p2 = std::get_if<long>(&param2);
+
+    if (p1 && p2)
+        event.reply("Product: " + std::to_string((*p1) * (*p2)));
+    else
+        event.reply("Invalid parameters, expected numbers.");
+}
+
+void ping_group_square(const dpp::slashcommand_t& event)
+{
+    auto param = event.get_parameter("number");
+
+    if (auto p = std::get_if<long>(&param))
+        event.reply("Square: " + std::to_string((*p) * (*p)));
+    else
+        event.reply("Invalid parameter, expected a number.");
 }

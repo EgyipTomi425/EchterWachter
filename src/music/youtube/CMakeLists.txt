@@ -4,6 +4,7 @@ target_sources(youtube
         PUBLIC
         FILE_SET CXX_MODULES FILES
             youtube.cppm
+            util.cppm
             test.cppm
         PRIVATE
             test.cpp
