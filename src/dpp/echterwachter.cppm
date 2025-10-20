@@ -124,6 +124,26 @@ export constexpr int_param operator"" _int(const char* str, size_t)
     return int_param(str);
 }
 
+export struct string_param
+{
+    const char* name;
+    const char* desc;
+    bool required;
+
+    constexpr explicit string_param(const char* n, const char* d = "String parameter", bool r = true)
+        : name(n), desc(d), required(r) {}
+
+    [[nodiscard]] dpp::command_option make_option() const
+    {
+        return dpp::command_option(dpp::co_string, name, desc, required);
+    }
+};
+
+export constexpr string_param operator"" _str(const char* str, size_t)
+{
+    return string_param(str);
+}
+
 export inline auto params = [](auto... ps)
 {
     std::vector<dpp::command_option> v;
