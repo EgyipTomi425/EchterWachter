@@ -23,9 +23,27 @@ export struct BotCommand
     ) : cmd(c), guild_id(gid), callback(cb) {}
 };
 
-export template<typename Name, typename Desc, typename Func, typename Options = std::vector<dpp::command_option>, typename... Rest>
+template<typename Name, typename Desc, typename Func, typename Options, typename... Rest>
 std::unordered_map<std::string, std::function<void(const dpp::slashcommand_t&)>>
-add_subcommands(dpp::slashcommand& parent, Name&& name, Desc&& desc, Func&& func, Options options = {}, Rest&&... rest);
+add_subcommands(dpp::slashcommand& parent, Name&& name, Desc&& desc, Func&& func, Options options, Rest&&... rest)
+{
+    std::unordered_map<std::string, std::function<void(const dpp::slashcommand_t&)>> routes;
+
+    dpp::command_option sub(dpp::co_sub_command, name, desc);
+    for (auto& opt : options)
+        sub.add_option(opt);
+
+    parent.add_option(sub);
+    routes[name] = func;
+
+    if constexpr (sizeof...(Rest) > 0)
+    {
+        auto rest_routes = add_subcommands(parent, std::forward<Rest>(rest)...);
+        routes.insert(rest_routes.begin(), rest_routes.end());
+    }
+
+    return routes;
+}
 
 export std::function<void(const dpp::slashcommand_t&)>
 make_router(const std::unordered_map<std::string, std::function<void(const dpp::slashcommand_t&)>>& routes);
@@ -46,7 +64,7 @@ export inline dpp::cluster bot([]
     return dpp::cluster(token);
 }());
 
-struct CommandGroup
+export struct CommandGroup
 {
     dpp::slashcommand cmd;
     std::unordered_map<std::string, std::function<void(const dpp::slashcommand_t&)>> routes;
@@ -92,10 +110,10 @@ export struct int_param
     const char* desc;
     bool required;
 
-    constexpr int_param(const char* n, const char* d = "Integer parameter", bool r = true)
+    constexpr explicit int_param(const char* n, const char* d = "Integer parameter", bool r = true)
         : name(n), desc(d), required(r) {}
 
-    dpp::command_option make_option() const
+    [[nodiscard]] dpp::command_option make_option() const
     {
         return dpp::command_option(dpp::co_integer, name, desc, required);
     }
@@ -117,10 +135,10 @@ export inline auto params = [](auto... ps)
 export int bot_add();
 export inline int magic_number = bot_add();
 
-void register_examples();
-void ping(const dpp::slashcommand_t& event);
-void ping_local(const dpp::slashcommand_t& event);
-void ping_group_ping(const dpp::slashcommand_t& event);
-void ping_group_add(const dpp::slashcommand_t& event);
-void ping_group_multiply(const dpp::slashcommand_t& event);
-void ping_group_square(const dpp::slashcommand_t& event);
+export void register_examples();
+export void ping(const dpp::slashcommand_t& event);
+export void ping_local(const dpp::slashcommand_t& event);
+export void ping_group_ping(const dpp::slashcommand_t& event);
+export void ping_group_add(const dpp::slashcommand_t& event);
+export void ping_group_multiply(const dpp::slashcommand_t& event);
+export void ping_group_square(const dpp::slashcommand_t& event);

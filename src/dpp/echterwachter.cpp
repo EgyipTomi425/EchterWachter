@@ -53,28 +53,6 @@ void register_commands()
                 bot.global_command_create(bc.cmd);
 }
 
-template<typename Name, typename Desc, typename Func, typename Options, typename... Rest>
-std::unordered_map<std::string, std::function<void(const dpp::slashcommand_t&)>>
-add_subcommands(dpp::slashcommand& parent, Name&& name, Desc&& desc, Func&& func, Options options, Rest&&... rest)
-{
-    std::unordered_map<std::string, std::function<void(const dpp::slashcommand_t&)>> routes;
-
-    dpp::command_option sub(dpp::co_sub_command, name, desc);
-    for (auto& opt : options)
-        sub.add_option(opt);
-
-    parent.add_option(sub);
-    routes[name] = func;
-
-    if constexpr (sizeof...(Rest) > 0)
-    {
-        auto rest_routes = add_subcommands(parent, std::forward<Rest>(rest)...);
-        routes.insert(rest_routes.begin(), rest_routes.end());
-    }
-
-    return routes;
-}
-
 std::function<void(const dpp::slashcommand_t&)>
 make_router(const std::unordered_map<std::string, std::function<void(const dpp::slashcommand_t&)>>& routes)
 {
