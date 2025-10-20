@@ -23,9 +23,9 @@ export struct BotCommand
     ) : cmd(c), guild_id(gid), callback(cb) {}
 };
 
-export template<typename Name, typename Desc, typename Func, typename... Rest>
+export template<typename Name, typename Desc, typename Func, typename Options = std::vector<dpp::command_option>, typename... Rest>
 std::unordered_map<std::string, std::function<void(const dpp::slashcommand_t&)>>
-add_subcommands(dpp::slashcommand& parent, Name&& name, Desc&& desc, Func&& func, Rest&&... rest);
+add_subcommands(dpp::slashcommand& parent, Name&& name, Desc&& desc, Func&& func, Options options = {}, Rest&&... rest);
 
 export std::function<void(const dpp::slashcommand_t&)>
 make_router(const std::unordered_map<std::string, std::function<void(const dpp::slashcommand_t&)>>& routes);
@@ -84,6 +84,33 @@ struct CommandGroup
         cmd.options.clear();
         registered = false;
     }
+};
+
+export struct int_param
+{
+    const char* name;
+    const char* desc;
+    bool required;
+
+    constexpr int_param(const char* n, const char* d = "Integer parameter", bool r = true)
+        : name(n), desc(d), required(r) {}
+
+    dpp::command_option make_option() const
+    {
+        return dpp::command_option(dpp::co_integer, name, desc, required);
+    }
+};
+
+export constexpr int_param operator"" _int(const char* str, size_t)
+{
+    return int_param(str);
+}
+
+export inline auto params = [](auto... ps)
+{
+    std::vector<dpp::command_option> v;
+    (v.emplace_back(ps.make_option()), ...);
+    return v;
 };
 
 // Just for testing inline functions

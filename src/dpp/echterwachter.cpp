@@ -53,22 +53,18 @@ void register_commands()
                 bot.global_command_create(bc.cmd);
 }
 
-template<typename Name, typename Desc, typename Func, typename... Rest>
+template<typename Name, typename Desc, typename Func, typename Options, typename... Rest>
 std::unordered_map<std::string, std::function<void(const dpp::slashcommand_t&)>>
-add_subcommands(dpp::slashcommand& parent, Name&& name, Desc&& desc, Func&& func, Rest&&... rest)
+add_subcommands(dpp::slashcommand& parent, Name&& name, Desc&& desc, Func&& func, Options options, Rest&&... rest)
 {
-    static_assert(sizeof...(Rest) % 3 == 0, "Each subcommand must have: name, description, callback");
-
     std::unordered_map<std::string, std::function<void(const dpp::slashcommand_t&)>> routes;
 
-    auto add_one = [&]<typename T0>(auto&& n, auto&& d, T0&& f)
-    {
-        dpp::command_option opt(dpp::co_sub_command, n, d);
-        parent.add_option(opt);
-        routes[n] = std::forward<T0>(f);
-    };
+    dpp::command_option sub(dpp::co_sub_command, name, desc);
+    for (auto& opt : options)
+        sub.add_option(opt);
 
-    add_one(std::forward<Name>(name), std::forward<Desc>(desc), std::forward<Func>(func));
+    parent.add_option(sub);
+    routes[name] = func;
 
     if constexpr (sizeof...(Rest) > 0)
     {
@@ -131,18 +127,24 @@ void register_examples()
 
     // Ping group
     {
+        // You can use guild ID here
         CommandGroup ping_group("ping-group", "Ping group commands");
 
+        // You don't have to add all subcommands one time, it does not delete the routes.
         ping_group.add
         (
             "ping", "Ping command", ping_group_ping,
-            "add", "Adding 2 numbers", ping_group_add
+                params(),
+            "add", "Adding 2 numbers", ping_group_add,
+                params("number1"_int, "number2"_int)
         );
 
         ping_group.add
-        (
+        (   // If you want to use more or less parameters
             "multiply", "Multiply 2 numbers", ping_group_multiply,
-            "square", "Square a number", ping_group_square
+                params(int_param("number1", "First number", true), "number2"_int),
+            "square", "Square a number", ping_group_square,
+                params("number"_int)
         );
 
         ping_group.register_commands();
