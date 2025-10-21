@@ -2,3 +2,7 @@
 	path = src/gge-sdk
 	url = git@github.com:EgyipTomi425/gge-sdk.git
 	branch = master
+[submodule "src/util"]
+	path = src/util
+	url = git@github.com:EgyipTomi425/util.git
+	branch = master
