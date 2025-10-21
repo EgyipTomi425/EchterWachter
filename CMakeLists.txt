@@ -12,6 +12,12 @@ target_compile_definitions(EchterWachter PRIVATE ECHTERWACHTER)
 add_subdirectory(src/dpp)
 target_link_libraries(EchterWachter PRIVATE echterwachter)
 
+if(UTIL)
+    target_compile_definitions(EchterWachter PRIVATE UTIL)
+    add_subdirectory(src/util)
+    target_link_libraries(EchterWachter PRIVATE util)
+endif()
+
 if(MUSIC)
     target_compile_definitions(EchterWachter PRIVATE MUSIC)
     add_subdirectory(src/music)
