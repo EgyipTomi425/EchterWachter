@@ -18,6 +18,12 @@ if(MUSIC)
     target_link_libraries(EchterWachter PRIVATE music)
 endif()
 
+if(GGE_SDK_DC)
+    target_compile_definitions(EchterWachter PRIVATE GGE_SDK_DC)
+    add_subdirectory(src/gge-sdk/discord)
+    target_link_libraries(EchterWachter PRIVATE gge_sdk_dc)
+endif()
+
 target_sources(EchterWachter
         PUBLIC
         FILE_SET CXX_MODULES FILES
