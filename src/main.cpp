@@ -12,9 +12,6 @@ int main()
 #ifdef YOUTUBE
     std::cout << "YouTube: ON   " << yt::add() << std::endl;
 #endif
-#ifdef SPOTIFY
-    std::cout << "Spotify: ON   " << spotify::add() << std::endl;
-#endif
 #endif
 
     std::cout << "MAGIC_NUMBER: " << magic_number << std::endl;

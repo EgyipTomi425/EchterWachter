@@ -1,4 +1,4 @@
-add_library(echterwachter)
+add_library(echterwachter SHARED)
 
 include(FetchContent)
 FetchContent_Declare(
