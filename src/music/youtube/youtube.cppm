@@ -25,6 +25,8 @@ export inline const int register_yt = []
         "YouTube related commands"
     );
 
+    commands.cmd.set_dm_permission(true);
+
     commands.add
     (
         "play", "Play a YouTube video", yt::play,
