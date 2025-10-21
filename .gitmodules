@@ -1,0 +1,4 @@
+[submodule "src/gge-sdk"]
+	path = src/gge-sdk
+	url = git@github.com:EgyipTomi425/gge-sdk.git
+	branch = master
