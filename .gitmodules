@@ -5,3 +5,4 @@
 [submodule "src/custom"]
 	path = src/custom
 	url = https://github.com/EgyipTomi425/custom.git
+	branch = master
