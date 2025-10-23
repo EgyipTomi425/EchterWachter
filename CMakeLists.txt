@@ -32,6 +32,7 @@ endif()
 
 # Custom plugins
 if(CUSTOM)
+    set(CUSTOM OFF)
     if(EXISTS "${CMAKE_SOURCE_DIR}/src/custom")
         if(EXISTS "${CMAKE_SOURCE_DIR}/src/custom/TemplateCMakeLists.cmake" AND
                 NOT EXISTS "${CMAKE_SOURCE_DIR}/src/custom/CMakeLists.txt")
