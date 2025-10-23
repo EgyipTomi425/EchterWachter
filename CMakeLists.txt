@@ -31,9 +31,21 @@ endif()
 ######################################
 
 # Custom plugins
-target_compile_definitions(EchterWachter PRIVATE CUSTOM)
-add_subdirectory(src/custom)
-target_link_libraries(EchterWachter PRIVATE custom)
+set(CUSTOM OFF)
+if(EXISTS "${CMAKE_SOURCE_DIR}/src/custom")
+    file(GLOB CUSTOM_CONTENT "${CMAKE_SOURCE_DIR}/src/custom/*")
+    if(CUSTOM_CONTENT)
+        message(STATUS "Custom content found, enabling CUSTOM.")
+        set(CUSTOM ON CACHE BOOL "Enable custom libraries")
+        target_compile_definitions(EchterWachter PRIVATE CUSTOM)
+        add_subdirectory(src/custom)
+        target_link_libraries(EchterWachter PRIVATE custom)
+    else()
+        message(STATUS "Custom folder exists but is empty, skipping custom libraries.")
+    endif()
+else()
+    message(STATUS "Custom folder does not exist, skipping custom libraries.")
+endif()
 ################
 
 target_sources(EchterWachter
