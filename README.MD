@@ -2,6 +2,10 @@
 
 Hi! :) The repo allows us to build a highly modular Discord Bot, where we can decide what we want to include and the components are not dependent on each other.
 
+```bash
+git clone git@github.com:EgyipTomi425/EchterWachter.git --recurse-submodules 
+```
+
 ## Architecture
 
 In the config file, we can disable modules that we don't need. The architecture follows a tree of arbitrary depth, and we can choose which leaves or entire subtrees are needed, these are collected in `plugins.cppm` and defined as CMake libraries.
