@@ -8,6 +8,6 @@ export import util;
 export import music;
 #endif
 
-#ifdef GGE_SDK_DC
-export import gge_sdk_dc;
+#ifdef CUSTOM
+export import custom;
 #endif

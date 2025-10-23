@@ -1,4 +1,5 @@
 /*build*/
+#src/custom/*
 
 *.o
 *.obj

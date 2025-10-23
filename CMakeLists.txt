@@ -8,27 +8,33 @@ include("${CMAKE_SOURCE_DIR}/config.cmake")
 
 add_executable(EchterWachter)
 
+# Discord lib interface
 target_compile_definitions(EchterWachter PRIVATE ECHTERWACHTER)
 add_subdirectory(src/dpp)
 target_link_libraries(EchterWachter PRIVATE echterwachter)
+#######################
 
+# Not discord related useful moduls
 if(UTIL)
     target_compile_definitions(EchterWachter PRIVATE UTIL)
     add_subdirectory(src/util)
     target_link_libraries(EchterWachter PRIVATE util)
 endif()
+####################################
 
+# Discord related commands and modules (They can use UTIL)
 if(MUSIC)
     target_compile_definitions(EchterWachter PRIVATE MUSIC)
     add_subdirectory(src/music)
     target_link_libraries(EchterWachter PRIVATE music)
 endif()
+######################################
 
-if(GGE_SDK_DC)
-    target_compile_definitions(EchterWachter PRIVATE GGE_SDK_DC)
-    add_subdirectory(src/gge-sdk/discord)
-    target_link_libraries(EchterWachter PRIVATE gge_sdk_dc)
-endif()
+# Custom plugins
+target_compile_definitions(EchterWachter PRIVATE CUSTOM)
+add_subdirectory(src/custom)
+target_link_libraries(EchterWachter PRIVATE custom)
+################
 
 target_sources(EchterWachter
         PUBLIC
