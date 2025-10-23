@@ -54,6 +54,16 @@ if(CUSTOM)
             message(STATUS "Templateconfig.cmake copied to config.cmake")
         endif()
 
+        if(EXISTS "${CMAKE_SOURCE_DIR}/src/custom/Templatecustom.cppm" AND
+            NOT EXISTS "${CMAKE_SOURCE_DIR}/src/custom/custom.cppm")
+
+            execute_process(COMMAND ${CMAKE_COMMAND} -E copy
+            "${CMAKE_SOURCE_DIR}/src/custom/Templatecustom.cppm"
+            "${CMAKE_SOURCE_DIR}/src/custom/custom.cppm")
+
+            message(STATUS "Templateconfig.cmake copied to config.cmake")
+        endif()
+
         file(GLOB CUSTOM_CONTENT "${CMAKE_SOURCE_DIR}/src/custom/*")
         if(CUSTOM_CONTENT AND EXISTS "${CMAKE_SOURCE_DIR}/src/custom/CMakeLists.txt")
             message(STATUS "Custom content found, enabling CUSTOM.")
