@@ -44,7 +44,7 @@ sudo apt upgrade -y
 If you want to build it, you should have minimum 32 GB of RAM. If your versions are fine, this is not reccomend:
 
 ```bash
-git clone --branch master https://github.com/llvm/llvm-project.git
+git clone --branch llvmorg-22-init https://github.com/llvm/llvm-project
 cd llvm-project
 git tag
 mkdir build
