@@ -47,7 +47,7 @@ If you want to build it, you should have minimum 32 GB of RAM. If your versions 
 git clone https://github.com/llvm/llvm-project.git
 cd llvm-project
 
-LATEST_TAG=$(git describe --tags $(git rev-list --tags --max-count=1))
+LATEST_TAG=$(git describe --tags $(git rev-list --tags --max-count=0))
 
 git checkout $LATEST_TAG
 
