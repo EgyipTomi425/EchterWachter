@@ -44,21 +44,23 @@ sudo apt upgrade -y
 If you want to build it, you should have minimum 32 GB of RAM. If your versions are fine, this is not reccomend:
 
 ```bash
-git clone --branch llvmorg-22-init https://github.com/llvm/llvm-project
+git clone https://github.com/llvm/llvm-project.git
 cd llvm-project
-git tag
-mkdir build
-cd build
+
+LATEST_TAG=$(git describe --tags $(git rev-list --tags --max-count=1))
+
+git checkout $LATEST_TAG
+
+mkdir build && cd build
+
 cmake -G Ninja ../llvm \
-    -DCMAKE_BUILD_TYPE=Release \
-    -DLLVM_ENABLE_PROJECTS="clang;lld;clang-tools-extra" \
-    -DLLVM_TARGETS_TO_BUILD="X86;ARM;AArch64" \
-    -DCMAKE_INSTALL_PREFIX=/opt/llvm
+  -DCMAKE_BUILD_TYPE=Release \
+  -DLLVM_ENABLE_PROJECTS="clang;lld;clang-tools-extra" \
+  -DLLVM_TARGETS_TO_BUILD="X86;ARM;AArch64" \
+  -DCMAKE_INSTALL_PREFIX=/opt/llvm
+
 ninja
 sudo ninja install
-du -sh /opt
-clang++ --version
-
 ```
 
 If you use CLion or QT Creator, link the new compiler.
