@@ -2,7 +2,7 @@ add_library(echterwachter)
 
 include(FetchContent)
 
-find_package(DPP QUIET)
+find_package(DPP)
 
 if(NOT DPP_FOUND)
     message(STATUS "DPP not found, downloading via FetchContent.")
