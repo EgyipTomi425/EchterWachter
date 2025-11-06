@@ -1,10 +1,11 @@
-add_library(echterwachter SHARED)
+add_library(echterwachter)
+
+include(FetchContent)
 
 find_package(DPP QUIET)
 
 if(NOT DPP_FOUND)
     message(STATUS "DPP not found, downloading via FetchContent.")
-    include(FetchContent)
     FetchContent_Declare(
             DPP
             GIT_REPOSITORY https://github.com/brainboxdotcc/DPP.git
