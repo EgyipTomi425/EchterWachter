@@ -6,6 +6,20 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include("${CMAKE_SOURCE_DIR}/config.cmake")
 
+if(WIN32)
+    set(SHARED_BUILD OFF)
+endif()
+
+if(WIN32)
+    set(BUILD_SHARED_LIBS OFF CACHE BOOL "Force static libraries on Windows" FORCE)
+else()
+    if(SHARED_BUILD)
+        set(BUILD_SHARED_LIBS ON CACHE BOOL "Build shared libraries" FORCE)
+    else()
+        set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build static libraries" FORCE)
+    endif()
+endif()
+
 add_executable(EchterWachter)
 
 # Discord lib interface
@@ -87,3 +101,14 @@ target_sources(EchterWachter
         PRIVATE
             src/main.cpp
 )
+
+if(WIN32)
+    file(GLOB_RECURSE ALL_DLLS "${CMAKE_SOURCE_DIR}/*.dll")
+
+    foreach(_dll ${ALL_DLLS})
+        execute_process(
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_dll}" "${CMAKE_BINARY_DIR}"
+        )
+    endforeach()
+endif()
+

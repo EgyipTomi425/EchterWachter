@@ -48,7 +48,8 @@ add_subcommands(dpp::slashcommand& parent, Name&& name, Desc&& desc, Func&& func
 export std::function<void(const dpp::slashcommand_t&)>
 make_router(const std::unordered_map<std::string, std::function<void(const dpp::slashcommand_t&)>>& routes);
 
-inline std::vector<BotCommand> commands;
+// Windows will not accept if this is not exported
+export inline std::vector<BotCommand> commands;
 export void add_command(const BotCommand& bc);
 export void start_bot(bool register_new_commands = false);
 void register_commands();

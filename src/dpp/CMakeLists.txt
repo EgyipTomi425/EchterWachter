@@ -1,20 +1,22 @@
 add_library(echterwachter)
 
+# Windows
+set_target_properties(echterwachter PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+
 include(FetchContent)
 
-find_package(DPP)
+get_property(_old_BSL CACHE BUILD_SHARED_LIBS PROPERTY VALUE)
 
-if(NOT DPP_FOUND)
-    message(STATUS "DPP not found, downloading via FetchContent.")
-    FetchContent_Declare(
-            DPP
+set(BUILD_SHARED_LIBS ON CACHE BOOL "Force shared build for DPP" FORCE)
+
+FetchContent_Declare(
+        DPP
             GIT_REPOSITORY https://github.com/brainboxdotcc/DPP.git
             GIT_TAG master
-    )
-    FetchContent_MakeAvailable(DPP)
-else()
-    message(STATUS "DPP found, skipping download.")
-endif()
+)
+FetchContent_MakeAvailable(DPP)
+
+set(BUILD_SHARED_LIBS ${_old_BSL} CACHE BOOL "Restore previous BUILD_SHARED_LIBS" FORCE)
 
 target_sources(echterwachter
         PUBLIC

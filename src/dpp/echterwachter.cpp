@@ -149,8 +149,8 @@ void ping_group_add(const dpp::slashcommand_t& event)
     auto param1 = event.get_parameter("number1");
     auto param2 = event.get_parameter("number2");
 
-    auto p1 = std::get_if<long>(&param1);
-    auto p2 = std::get_if<long>(&param2);
+    auto p1 = std::get_if<int64_t>(&param1);
+    auto p2 = std::get_if<int64_t>(&param2);
 
     if (p1 != nullptr && p2 != nullptr)
         event.reply("Sum: " + std::to_string(*p1 + *p2));
@@ -163,8 +163,8 @@ void ping_group_multiply(const dpp::slashcommand_t& event)
     auto param1 = event.get_parameter("number1");
     auto param2 = event.get_parameter("number2");
 
-    auto p1 = std::get_if<long>(&param1);
-    auto p2 = std::get_if<long>(&param2);
+    auto p1 = std::get_if<int64_t>(&param1);
+    auto p2 = std::get_if<int64_t>(&param2);
 
     if (p1 && p2)
         event.reply("Product: " + std::to_string((*p1) * (*p2)));
@@ -176,7 +176,7 @@ void ping_group_square(const dpp::slashcommand_t& event)
 {
     auto param = event.get_parameter("number");
 
-    if (auto p = std::get_if<long>(&param))
+    if (auto p = std::get_if<int64_t>(&param))
         event.reply("Square: " + std::to_string((*p) * (*p)));
     else
         event.reply("Invalid parameter, expected a number.");
