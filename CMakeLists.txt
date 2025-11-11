@@ -20,23 +20,6 @@ else()
     endif()
 endif()
 
-if(MSVC)
-    # Multithreaded static runtime (release)
-    foreach(flag_var
-            CMAKE_C_FLAGS_RELEASE
-            CMAKE_C_FLAGS_RELWITHDEBINFO
-            CMAKE_C_FLAGS_DEBUG
-            CMAKE_C_FLAGS_MINSIZEREL
-            CMAKE_CXX_FLAGS_RELEASE
-            CMAKE_CXX_FLAGS_RELWITHDEBINFO
-            CMAKE_CXX_FLAGS_DEBUG
-            CMAKE_CXX_FLAGS_MINSIZEREL)
-        if(${flag_var} MATCHES "/MD")
-            string(REGEX REPLACE "/MD" "/MT" ${flag_var} "${${flag_var}}")
-        endif()
-    endforeach()
-endif()
-
 add_executable(EchterWachter)
 
 # Discord lib interface
@@ -129,3 +112,35 @@ if(WIN32)
     endforeach()
 endif()
 
+
+if(WIN32)
+    set(VS_ROOT "C:/Program Files/Microsoft Visual Studio")
+    file(GLOB VS_SUBFOLDERS "${VS_ROOT}/*")
+
+    set(VS_YEAR "")
+    foreach(sub ${VS_SUBFOLDERS})
+        if(IS_DIRECTORY ${sub})
+            get_filename_component(VS_YEAR ${sub} NAME)
+            break()
+        endif()
+    endforeach()
+
+    if(VS_YEAR STREQUAL "")
+        message(FATAL_ERROR "Cannot find any Visual Studio folder in ${VS_ROOT}")
+    endif()
+
+    set(VS_REDIST "${VS_ROOT}/${VS_YEAR}/Community/VC/Redist/MSVC")
+    message(STATUS "Using Visual Studio folder: ${VS_REDIST}")
+
+
+
+
+
+
+    file(GLOB_RECURSE VS_DLLS "${VS_REDIST}/*/x64/*.dll")
+    foreach(_dll ${VS_DLLS})
+        execute_process(
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_dll}" "${CMAKE_BINARY_DIR}"
+        )
+    endforeach()
+endif()
