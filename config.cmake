@@ -1,8 +1,8 @@
 set(SHARED_BUILD ON)
 
-set(UTIL OFF)
+set(UTIL ON)
 
 set(MUSIC OFF)
     set(YOUTUBE OFF)
 
-set(CUSTOM OFF)
+set(CUSTOM ON)
