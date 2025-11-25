@@ -144,3 +144,11 @@ if(WIN32)
         )
     endforeach()
 endif()
+
+if(MSVC AND EXISTS "${CMAKE_BINARY_DIR}/CMakeFiles")
+    file(GLOB_RECURSE MODULE_FILES "${CMAKE_BINARY_DIR}/CMakeFiles/*.ifc" "${CMAKE_BINARY_DIR}/CMakeFiles/*.obj")
+
+    foreach(_f ${MODULE_FILES})
+        execute_process(COMMAND ${CMAKE_COMMAND} -E remove "${_f}")
+    endforeach()
+endif()
