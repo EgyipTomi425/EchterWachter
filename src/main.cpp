@@ -2,6 +2,7 @@ import plugins;
 import echterwachter;
 
 #include <iostream>
+#include <vector>
 
 int main()
 {
@@ -14,7 +15,7 @@ int main()
 #endif
 
     std::cout << "MAGIC_NUMBER: " << magic_number << std::endl;
-    
+
     start_bot(false); // If you use it too often, you will reach the rate limit
 
     return 0;
