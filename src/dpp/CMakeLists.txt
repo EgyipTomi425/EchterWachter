@@ -3,6 +3,8 @@ add_library(echterwachter)
 # Windows
 set_target_properties(echterwachter PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
+find_package(CURL REQUIRED)
+
 include(FetchContent)
 
 get_property(_old_BSL CACHE BUILD_SHARED_LIBS PROPERTY VALUE)
@@ -26,6 +28,6 @@ target_sources(echterwachter
             echterwachter.cpp
 )
 
-target_link_libraries(echterwachter PUBLIC dpp)
+target_link_libraries(echterwachter PUBLIC dpp CURL::libcurl)
 
 target_compile_definitions(echterwachter PUBLIC ECHTERWACHTER)

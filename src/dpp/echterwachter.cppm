@@ -6,6 +6,7 @@ module;
 #include <iostream>
 #include <functional>
 #include <unordered_map>
+#include <curl/curl.h>
 
 export module echterwachter;
 
@@ -143,6 +144,56 @@ export struct string_param
 export constexpr string_param operator"" _str(const char* str, size_t)
 {
     return string_param(str);
+}
+
+export struct file_param
+{
+    const char* name;
+    const char* desc;
+    bool required;
+
+    constexpr file_param(const char* n, const char* d = "File upload", bool r = true)
+        : name(n), desc(d), required(r) {}
+
+    [[nodiscard]] dpp::command_option make_option() const
+    {
+        return dpp::command_option(dpp::co_attachment, name, desc, required);
+    }
+};
+
+export constexpr file_param operator"" _file(const char* str, size_t)
+{
+    return file_param(str);
+}
+
+struct CurlDeleter { void operator()(CURL* c){ if(c) curl_easy_cleanup(c); } };
+using CurlHandle = std::unique_ptr<CURL, CurlDeleter>;
+
+size_t static write_to_vector(void* ptr, size_t size, size_t nmemb, void* userdata)
+{
+    auto* buffer = static_cast<std::vector<uint8_t>*>(userdata);
+    size_t total = size * nmemb;
+    buffer->insert(buffer->end(), (uint8_t*)ptr, (uint8_t*)ptr + total);
+    return total;
+}
+
+std::vector<uint8_t> download_file_to_memory(const std::string& url)
+{
+    CurlHandle curl(curl_easy_init());
+    if(!curl) throw std::runtime_error("Failed to init curl");
+
+    std::vector<uint8_t> data;
+
+    curl_easy_setopt(curl.get(), CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl.get(), CURLOPT_WRITEFUNCTION, write_to_vector);
+    curl_easy_setopt(curl.get(), CURLOPT_WRITEDATA, &data);
+    curl_easy_setopt(curl.get(), CURLOPT_FOLLOWLOCATION, 1L);
+
+    CURLcode res = curl_easy_perform(curl.get());
+    if(res != CURLE_OK)
+        throw std::runtime_error("Curl download failed: " + std::string(curl_easy_strerror(res)));
+
+    return data;
 }
 
 export inline auto params = [](auto... ps)
