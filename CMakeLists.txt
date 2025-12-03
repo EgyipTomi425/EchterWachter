@@ -4,6 +4,7 @@ project(EchterWachter LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+set(DISCORD ON)
 include("${CMAKE_SOURCE_DIR}/config.cmake")
 
 if(WIN32)
