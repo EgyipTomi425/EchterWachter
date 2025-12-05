@@ -196,6 +196,51 @@ std::vector<uint8_t> download_file_to_memory(const std::string& url)
     return data;
 }
 
+export void dc_download_text
+(
+    const dpp::slashcommand_t& event,
+    const std::string& param_name,
+    const std::function<void(const std::string& content, const dpp::attachment& file)>& callback
+)
+{
+    try
+    {
+        auto param = event.get_parameter(param_name);
+        auto sf = std::get_if<dpp::snowflake>(&param);
+        if (!sf) throw std::runtime_error(param_name + " parameter is not an attachment.");
+
+        dpp::snowflake file_id = *sf;
+
+        const auto& resolved = event.command.resolved;
+        auto it = resolved.attachments.find(file_id);
+        if (it == resolved.attachments.end())
+            throw std::runtime_error("Attachment not found.");
+
+        const dpp::attachment& file = it->second;
+
+        bot.request
+        (
+            file.url,
+            dpp::m_get,
+            [callback, file](const dpp::http_request_completion_t& http) {
+                if (http.status != 200)
+                {
+                    throw std::runtime_error("Download failed");
+                }
+
+                const std::string& data = http.body;
+
+                callback(data, file);
+            }
+        );
+    }
+    catch (const std::exception& e)
+    {
+        event.reply(std::string("Error: ") + e.what());
+    }
+}
+
+
 export inline auto params = [](auto... ps)
 {
     std::vector<dpp::command_option> v;
