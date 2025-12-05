@@ -240,7 +240,6 @@ export void dc_download_text
     }
 }
 
-
 export inline auto params = [](auto... ps)
 {
     std::vector<dpp::command_option> v;
