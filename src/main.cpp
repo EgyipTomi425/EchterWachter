@@ -23,7 +23,7 @@ int main()
 
     std::cout << "MAGIC_NUMBER: " << magic_number << std::endl;
 
-    start_bot(false); // If you use it too often, you will reach the rate limit
+    start_bot(true); // If you use it too often, you will reach the rate limit
 
     return 0;
 }
