@@ -7,5 +7,7 @@
 *.out
 *.log
 
+/folytasd.txt
+
 .*
 !*.gitignore

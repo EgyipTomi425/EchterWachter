@@ -1,8 +1,13 @@
 module;
 
 #include <dpp/dpp.h>
-#include <random>
+#include <condition_variable>
+#include <deque>
 #include <functional>
+#include <iostream>
+#include <mutex>
+#include <random>
+#include <thread>
 #include <unordered_map>
 #include <utility>
 
@@ -13,11 +18,62 @@ void add_command(const BotCommand& bc)
     commands.emplace_back(bc);
 }
 
+namespace
+{
+    // dpp::utility::cout_logger() writes straight to std::cout on whichever
+    // thread called cluster::log() - gateway thread, per-guild voice threads,
+    // pool threads, all of them. On a systemd service stdout is a pipe into
+    // journald; if journald's read side is ever slow (e.g. SD-card I/O stalls
+    // on a Pi), that write() blocks, and because stdio serializes all writers
+    // on the same underlying FILE* lock, every other thread that then tries to
+    // log anything blocks right behind it - including the gateway thread that
+    // reads Discord frames and dispatches slash commands. That looks exactly
+    // like "the bot stops responding to everything but never crashes".
+    // Fix: hand log lines to a queue and let one dedicated thread do the
+    // (possibly slow) actual I/O, so a stuck write() never stalls a dpp thread.
+    std::mutex log_mutex;
+    std::condition_variable log_cv;
+    std::deque<std::string> log_queue;
+
+    void log_writer_loop()
+    {
+        while (true)
+        {
+            std::string line;
+            {
+                std::unique_lock lock(log_mutex);
+                log_cv.wait(lock, [] { return !log_queue.empty(); });
+                line = std::move(log_queue.front());
+                log_queue.pop_front();
+            }
+            std::cout << line << std::endl;
+        }
+    }
+}
+
 void start_bot(bool register_new_commands)
 {
     register_examples();
 
-    bot.on_log(dpp::utility::cout_logger());
+    static std::jthread log_thread(log_writer_loop);
+
+    bot.on_log([](const dpp::log_t& event)
+    {
+        // DAVE/MLS voice-encryption bookkeeping logs at ll_debug on every
+        // voice-channel join/leave in every guild the bot is in, regardless of
+        // whether this bot's own commands are used - it is the main source of
+        // the log volume that can trigger the stall described above, and it
+        // has no operational value here, so drop it (and ll_trace) entirely.
+        if (event.severity <= dpp::ll_debug)
+            return;
+
+        std::string line = "[" + dpp::utility::current_date_time() + "] " +
+            dpp::utility::loglevel(event.severity) + ": " + event.message;
+
+        std::lock_guard lock(log_mutex);
+        log_queue.push_back(std::move(line));
+        log_cv.notify_one();
+    });
 
     bot.on_slashcommand([](const dpp::slashcommand_t& event)
     {

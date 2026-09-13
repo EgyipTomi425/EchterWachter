@@ -63,7 +63,25 @@ export inline dpp::cluster bot([]
         std::exit(1);
     }
 
-    return dpp::cluster(token);
+    // D++ runs every slash-command dispatch AND every REST completion
+    // callback (event.reply(), direct_message_create(), ...) through this
+    // same fixed-size pool - a REST completion is even higher priority than
+    // a command, so if enough of them ever pile up or stall, commands like
+    // /ping (which shares the pool but touches none of this bot's own voice
+    // code) stop getting a worker too. The library's own default is only
+    // std::thread::hardware_concurrency() / 2, floored to 4 - give it more
+    // headroom than that.
+    return dpp::cluster
+    (
+        token,
+        dpp::i_default_intents,
+        0,
+        0,
+        1,
+        true,
+        dpp::cache_policy::cpol_default,
+        8
+    );
 }());
 
 export struct CommandGroup
