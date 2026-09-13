@@ -7,6 +7,7 @@ module;
 #include <iostream>
 #include <mutex>
 #include <random>
+#include <shared_mutex>
 #include <thread>
 #include <unordered_map>
 #include <utility>
@@ -159,6 +160,24 @@ void register_examples()
         ping_local
     ));
 
+    // Join
+    {
+        dpp::slashcommand join_cmd("join", "Csatlakozik a hangcsatornadhoz", bot.me.id);
+        // Same scope as the voice module's own commands: usable in a server
+        // or in a DM with the bot.
+        join_cmd.set_interaction_contexts({dpp::itc_guild, dpp::itc_bot_dm});
+        join_cmd.set_dm_permission(true);
+        add_command(BotCommand(join_cmd, std::nullopt, join));
+    }
+
+    // Leave
+    {
+        dpp::slashcommand leave_cmd("leave", "Kilep a hangcsatornabol", bot.me.id);
+        leave_cmd.set_interaction_contexts({dpp::itc_guild, dpp::itc_bot_dm});
+        leave_cmd.set_dm_permission(true);
+        add_command(BotCommand(leave_cmd, std::nullopt, leave));
+    }
+
     // Ping group
     {
         // You can use guild ID here
@@ -193,6 +212,95 @@ void ping(const dpp::slashcommand_t& event)
 void ping_local(const dpp::slashcommand_t& event)
 {
     event.reply("Local Pong!");
+}
+
+void join(const dpp::slashcommand_t& event)
+{
+    dpp::snowflake user_id = event.command.get_issuing_user().id;
+    dpp::snowflake guild_id = event.command.guild_id;
+
+    if (guild_id == 0)
+    {
+        // Invoked from a DM with the bot: find a shared guild where the
+        // caller is currently in a voice channel, since there's no guild
+        // context here.
+        dpp::cache<dpp::guild>* c = dpp::get_guild_cache();
+        auto& container = c->get_container();
+        std::shared_lock lock(c->get_mutex());
+
+        for (auto& [id, g] : container)
+            if (g->voice_members.find(user_id) != g->voice_members.end())
+            {
+                guild_id = id;
+                break;
+            }
+    }
+
+    dpp::guild* g = guild_id != 0 ? dpp::find_guild(guild_id) : nullptr;
+    if (!g || !g->connect_member_voice(bot, user_id))
+    {
+        event.reply(dpp::message("Nem vagy hangcsatornaban ezen a szerveren!").set_flags(dpp::m_ephemeral));
+        return;
+    }
+
+    event.reply(dpp::message("Csatlakoztam a hangcsatornadhoz!").set_flags(dpp::m_ephemeral));
+}
+
+void leave(const dpp::slashcommand_t& event)
+{
+    dpp::snowflake user_id = event.command.get_issuing_user().id;
+    dpp::discord_client* shard = event.from();
+    dpp::snowflake guild_id = event.command.guild_id;
+
+    // True only if the bot is currently connected to voice on guild `g` and
+    // `user_id` is sitting in that same channel - this is what gates /leave,
+    // so someone can't disconnect the bot out of a channel they aren't even
+    // in.
+    auto in_same_channel = [&](dpp::snowflake gid, dpp::guild* g)
+    {
+        dpp::voiceconn* v = shard->get_voice(gid);
+        if (!v)
+            return false;
+
+        auto vsi = g->voice_members.find(user_id);
+        return vsi != g->voice_members.end() && vsi->second.channel_id == v->channel_id;
+    };
+
+    if (guild_id != 0)
+    {
+        dpp::guild* g = dpp::find_guild(guild_id);
+        if (!g || !in_same_channel(guild_id, g))
+        {
+            event.reply(dpp::message("Nem vagy velem egy hangcsatornaban!").set_flags(dpp::m_ephemeral));
+            return;
+        }
+    }
+    else
+    {
+        // Invoked from a DM with the bot: find a shared guild where the bot
+        // is currently in voice together with the caller.
+        dpp::cache<dpp::guild>* c = dpp::get_guild_cache();
+        auto& container = c->get_container();
+        std::shared_lock lock(c->get_mutex());
+
+        bool found = false;
+        for (auto& [id, g] : container)
+            if (in_same_channel(id, g))
+            {
+                guild_id = id;
+                found = true;
+                break;
+            }
+
+        if (!found)
+        {
+            event.reply(dpp::message("Nem vagy velem egy hangcsatornaban!").set_flags(dpp::m_ephemeral));
+            return;
+        }
+    }
+
+    shard->disconnect_voice(guild_id);
+    event.reply(dpp::message("Kileptem a hangcsatornabol!").set_flags(dpp::m_ephemeral));
 }
 
 void ping_group_ping(const dpp::slashcommand_t& event)

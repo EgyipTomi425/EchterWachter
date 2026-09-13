@@ -272,6 +272,8 @@ export inline int magic_number = bot_add();
 export void register_examples();
 export void ping(const dpp::slashcommand_t& event);
 export void ping_local(const dpp::slashcommand_t& event);
+export void join(const dpp::slashcommand_t& event);
+export void leave(const dpp::slashcommand_t& event);
 export void ping_group_ping(const dpp::slashcommand_t& event);
 export void ping_group_add(const dpp::slashcommand_t& event);
 export void ping_group_multiply(const dpp::slashcommand_t& event);
