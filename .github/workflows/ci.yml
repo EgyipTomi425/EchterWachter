@@ -31,7 +31,7 @@ jobs:
       CC: ${{ matrix.cc }}
       CXX: ${{ matrix.cxx }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
         with:
           submodules: false
           persist-credentials: false
@@ -42,9 +42,15 @@ jobs:
           test ! -f src/custom/gge_sdk/CMakeLists.txt
 
       - name: Install CPU build dependencies
+        timeout-minutes: 8
         run: |
-          sudo apt-get update
-          sudo apt-get install -y cmake ninja-build g++ clang clang-tools pkg-config libcurl4-openssl-dev libssl-dev zlib1g-dev libopus-dev
+          # Keep Ubuntu signatures; avoid the runner's failing Azure mirror DNS.
+          if [[ -f /etc/apt/apt-mirrors.txt ]]; then
+            printf '%s\n' 'https://mirrors.edge.kernel.org/ubuntu' | sudo tee /etc/apt/apt-mirrors.txt > /dev/null
+          fi
+          apt_options=(-o Acquire::ForceIPv4=true -o Acquire::Retries=2 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 -o DPkg::Lock::Timeout=120)
+          sudo env DEBIAN_FRONTEND=noninteractive apt-get "${apt_options[@]}" update --error-on=any
+          sudo env DEBIAN_FRONTEND=noninteractive apt-get "${apt_options[@]}" install -y --no-install-recommends cmake ninja-build g++ clang clang-tools pkg-config libcurl4-openssl-dev libssl-dev zlib1g-dev libopus-dev
 
       - name: Configure strict public build
         run: >-
@@ -71,7 +77,7 @@ jobs:
           tar -czf EchterWachter-${{ matrix.compiler }}-linux-x86_64.tar.gz -C dist .
 
       - name: Upload runtime
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: EchterWachter-${{ matrix.compiler }}-linux-x86_64
           path: EchterWachter-${{ matrix.compiler }}-linux-x86_64.tar.gz
@@ -79,7 +85,7 @@ jobs:
 
       - name: Upload test diagnostics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: tests-${{ matrix.compiler }}
           path: |
