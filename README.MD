@@ -45,11 +45,11 @@ the D++ dependency retains its own build settings.
 
 ```sh
 CXX=g++ cmake -S . -B build-gcc -G Ninja -DECHTERWACHTER_STRICT=ON
-cmake --build build-gcc --parallel 1
+cmake --build build-gcc --parallel 4
 ctest --test-dir build-gcc --output-on-failure --no-tests=error
 
 CXX=clang++ cmake -S . -B build-clang -G Ninja -DECHTERWACHTER_STRICT=ON
-cmake --build build-clang --parallel 1
+cmake --build build-clang --parallel 4
 ctest --test-dir build-clang --output-on-failure --no-tests=error
 ```
 
@@ -134,8 +134,8 @@ On the Debian bot server:
 The service helper defaults to `clang++`. Set `CXX` or pass
 `-DCMAKE_CXX_COMPILER=...` explicitly to choose another compiler. Use a separate
 build directory or remove its CMake cache when changing compilers.
-Start with one build job on machines with limited RAM. Building LLVM from source
-is unnecessary for the tested Debian deployment.
+The service helper and CI use four build jobs (`--parallel 4`). Building LLVM
+from source is unnecessary for the tested Debian deployment.
 
 Piper is optional; voice commands fall back to `espeak-ng` and use `ffmpeg` for
 resampling. Neural voices require a separately installed Piper binary; the

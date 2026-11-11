@@ -22,6 +22,6 @@ if [[ -f "$repo_dir/src/custom/gge_sdk/CMakeLists.txt" ]]; then
 fi
 # Leave it stopped on failure; only start the newly built binary after checks pass.
 cmake -S "$repo_dir" -B "$repo_dir/build" -G Ninja "$@" "${sdk_options[@]}"
-cmake --build "$repo_dir/build" --parallel 1
+cmake --build "$repo_dir/build" --parallel 4
 ctest --test-dir "$repo_dir/build" --output-on-failure --no-tests=error
 systemctl start echterwachter.service
