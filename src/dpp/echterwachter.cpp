@@ -44,7 +44,7 @@ namespace
     std::mutex command_sync_mutex;
     std::unordered_set<uint64_t> synced_guilds;
 
-    void sync_guild_commands(dpp::snowflake guild_id)
+    void sync_guild_commands(const dpp::snowflake guild_id)
     {
         {
             std::lock_guard lock(command_sync_mutex);
