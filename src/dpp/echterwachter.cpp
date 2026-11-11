@@ -1,7 +1,11 @@
 module;
 
 #include <dpp/dpp.h>
+#include "gateway_health.hpp"
+#include "command_registry.hpp"
 #include <condition_variable>
+#include <cstdint>
+#include <ctime>
 #include <deque>
 #include <functional>
 #include <iostream>
@@ -10,13 +14,14 @@ module;
 #include <shared_mutex>
 #include <thread>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 
 module echterwachter;
 
 void add_command(const BotCommand& bc)
 {
-    commands.emplace_back(bc);
+    echterwachter_detail::upsert_command(commands, bc);
 }
 
 namespace
@@ -33,21 +38,118 @@ namespace
     // Fix: hand log lines to a queue and let one dedicated thread do the
     // (possibly slow) actual I/O, so a stuck write() never stalls a dpp thread.
     std::mutex log_mutex;
-    std::condition_variable log_cv;
+    std::condition_variable_any log_cv;
+    constexpr std::size_t max_log_queue = 1024;
     std::deque<std::string> log_queue;
+    std::mutex command_sync_mutex;
+    std::unordered_set<uint64_t> synced_guilds;
 
-    void log_writer_loop()
+    void sync_guild_commands(dpp::snowflake guild_id)
     {
-        while (true)
+        {
+            std::lock_guard lock(command_sync_mutex);
+            if (!synced_guilds.insert(static_cast<uint64_t>(guild_id)).second)
+                return;
+        }
+        const auto scopes = echterwachter_detail::group_commands(commands);
+        const auto found = scopes.guilds.find(static_cast<uint64_t>(guild_id));
+        const std::vector<dpp::slashcommand> desired = found == scopes.guilds.end()
+            ? std::vector<dpp::slashcommand>{} : found->second;
+        // An empty array is intentional: it removes commands left by disabled modules.
+        bot.guild_bulk_command_create(desired, guild_id,
+            [guild_id, count = desired.size()](const dpp::confirmation_callback_t& result)
+        {
+            if (result.is_error())
+            {
+                {
+                    std::lock_guard lock(command_sync_mutex);
+                    synced_guilds.erase(static_cast<uint64_t>(guild_id));
+                }
+                bot.log(dpp::ll_error, "Guild command sync failed for " +
+                    std::to_string(guild_id) + ": " + result.get_error().message);
+            }
+            else
+                bot.log(dpp::ll_info, "Synced " + std::to_string(count) +
+                    " guild commands for " + std::to_string(guild_id));
+        });
+    }
+
+    void log_writer_loop(std::stop_token stop)
+    {
+        while (!stop.stop_requested())
         {
             std::string line;
             {
                 std::unique_lock lock(log_mutex);
-                log_cv.wait(lock, [] { return !log_queue.empty(); });
+                if (!log_cv.wait(lock, stop, [] { return !log_queue.empty(); }))
+                    return;
                 line = std::move(log_queue.front());
                 log_queue.pop_front();
             }
             std::cout << line << std::endl;
+        }
+    }
+
+    // D++ is supposed to notice a dead gateway connection by itself: once a
+    // second discord_client::one_second_timer() compares the time since the
+    // last heartbeat ACK against "two heartbeat intervals" and forces a
+    // reconnect if it is older. Except heartbeat_interval holds Discord's
+    // value in *milliseconds* (41250) while the left hand side of that
+    // comparison is in seconds, so the check only trips after 2 * 41250
+    // seconds - just under 23 hours. Until then a connection that has quietly
+    // stopped delivering events (a NAT mapping dropped by the router, a
+    // black-holed route - exactly what a long idle period produces) is never
+    // detected: our own websocket PING every 20s keeps the TCP session alive
+    // from this side, nothing is ever read, no handshake timeout applies once
+    // the socket reached CONNECTED, and the bot sits there looking healthy
+    // while ignoring every command.
+    //
+    // So do the same check here with the units the library meant to use.
+    constexpr uint64_t watchdog_interval_seconds = 30;
+
+    // Timer callbacks and shard replacement run on the socket-engine thread.
+    std::unordered_map<uint32_t, echterwachter_detail::GatewayHealth> gateway_health;
+
+    void check_gateway_health()
+    {
+        const time_t now = time(nullptr);
+
+        // Looked up one id at a time rather than iterating get_shards(): that
+        // returns a reference to the shard map after dropping its lock, and the
+        // map is still being filled from a REST callback on a pool thread while
+        // the cluster boots. get_shard() does its locking internally.
+        for (uint32_t shard_id = 0; shard_id < bot.numshards; ++shard_id)
+        {
+            dpp::discord_client* shard = bot.get_shard(shard_id);
+
+            // Momentarily null while the reconnect monitor swaps in a new
+            // connection - that is recovery working, not a stall.
+            if (shard == nullptr)
+            {
+                gateway_health.erase(shard_id);
+                continue;
+            }
+
+            if (!gateway_health[shard_id].should_reconnect(
+                    shard->is_connected(), shard->heartbeat_interval,
+                    now - shard->last_heartbeat_ack, std::chrono::steady_clock::now()))
+                continue;
+
+            bot.log
+            (
+                dpp::ll_warning,
+                "Watchdog: shard " + std::to_string(shard_id) + " unresponsive beyond the grace period (connected=" +
+                (shard->is_connected() ? "true" : "false") + ", last heartbeat ack " +
+                std::to_string(now - shard->last_heartbeat_ack) +
+                "s ago) - forcing a resume."
+            );
+
+            // Exactly what D++ does itself on a lost connection: close the
+            // socket and queue the shard for a *resume* (add_reconnect), so the
+            // session continues from its last sequence number. The bot does not
+            // go offline for users, no commands are re-registered, and no
+            // session-start or command rate limit is touched.
+            shard->on_disconnect();
         }
     }
 }
@@ -65,37 +167,58 @@ void start_bot(bool register_new_commands)
         // whether this bot's own commands are used - it is the main source of
         // the log volume that can trigger the stall described above, and it
         // has no operational value here, so drop it (and ll_trace) entirely.
-        if (event.severity <= dpp::ll_debug)
+        // Keep the gateway's own debug lines, though ("Lost connection to
+        // websocket on shard N", "Successfully resumed session id ..."): they
+        // are rare, and without them a shard that dies and then fails to come
+        // back leaves no trace whatsoever in the journal.
+        if (event.severity < dpp::ll_debug)
+            return;
+
+        if (event.severity == dpp::ll_debug &&
+            event.message.find("shard") == std::string::npos &&
+            event.message.find("resum") == std::string::npos)
             return;
 
         std::string line = "[" + dpp::utility::current_date_time() + "] " +
             dpp::utility::loglevel(event.severity) + ": " + event.message;
 
         std::lock_guard lock(log_mutex);
+        if (log_queue.size() >= max_log_queue)
+            log_queue.pop_front();
         log_queue.push_back(std::move(line));
         log_cv.notify_one();
     });
 
     bot.on_slashcommand([](const dpp::slashcommand_t& event)
     {
-        for (auto &bc : commands)
-            if (event.command.get_command_name() == bc.cmd.name)
-            {
-                if (bc.callback)
-                {
-                    bc.callback(event);
-                }
-                else
-                {
-                    event.reply("Command registered, but implementation not found: " + bc.cmd.name);
-                }
-            }
+        const auto* command = echterwachter_detail::find_command(commands,
+            event.command.get_command_name(), dpp::ctxm_chat_input,
+            static_cast<uint64_t>(event.command.guild_id));
+        if (command && command->callback)
+            command->callback(event);
+        else
+            event.reply(dpp::message("This command is unavailable. Please refresh the command list.")
+                .set_flags(dpp::m_ephemeral));
     });
 
     if (register_new_commands)
-        bot.on_ready([](const dpp::ready_t& event) {register_commands();});
-    else
-        register_commands();
+    {
+        bot.on_ready([](const dpp::ready_t& event)
+        {
+            register_commands();
+            for (const auto guild_id : event.guilds)
+                sync_guild_commands(guild_id);
+        });
+        bot.on_guild_create([](const dpp::guild_create_t& event)
+        {
+            sync_guild_commands(event.created.id);
+        });
+    }
+
+    // A plain D++ timer: it is dispatched from tick_timers() inside the socket
+    // engine's epoll loop, so between ticks the thread sleeps in epoll_wait -
+    // no polling and no spinning.
+    bot.start_timer([](dpp::timer) { check_gateway_health(); }, watchdog_interval_seconds);
 
     bot.start(dpp::st_wait);
 }
@@ -103,11 +226,17 @@ void start_bot(bool register_new_commands)
 void register_commands()
 {
     if (dpp::run_once<struct register_bot_commands>())
-        for (auto& bc : commands)
-            if (bc.guild_id.has_value())
-                bot.guild_command_create(bc.cmd, *bc.guild_id);
+    {
+        const auto scopes = echterwachter_detail::group_commands(commands);
+        bot.global_bulk_command_create(scopes.global,
+            [count = scopes.global.size()](const dpp::confirmation_callback_t& result)
+        {
+            if (result.is_error())
+                bot.log(dpp::ll_error, "Global command sync failed: " + result.get_error().message);
             else
-                bot.global_command_create(bc.cmd);
+                bot.log(dpp::ll_info, "Synced " + std::to_string(count) + " global commands");
+        });
+    }
 }
 
 std::function<void(const dpp::slashcommand_t&)>

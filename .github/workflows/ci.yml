@@ -1,0 +1,88 @@
+name: C++ CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.compiler }} / Ubuntu 26.04 / CPU
+    runs-on: ubuntu-26.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - compiler: GCC
+            cc: gcc
+            cxx: g++
+          - compiler: Clang
+            cc: clang
+            cxx: clang++
+    env:
+      CC: ${{ matrix.cc }}
+      CXX: ${{ matrix.cxx }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+          persist-credentials: false
+
+      - name: Fetch public modules (private SDK opts out of automatic updates)
+        run: |
+          git -c fetch.recurseSubmodules=false submodule update --init --recursive --remote
+          test ! -f src/custom/gge_sdk/CMakeLists.txt
+
+      - name: Install CPU build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build g++ clang clang-tools pkg-config libcurl4-openssl-dev libssl-dev zlib1g-dev libopus-dev
+
+      - name: Configure strict public build
+        run: >-
+          cmake -S . -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_BUILD_RPATH_USE_ORIGIN=ON
+          -DECHTERWACHTER_STRICT=ON
+          -DECHTERWACHTER_CUDA=OFF
+          -DBUILD_TESTING=ON
+
+      - name: Build
+        run: cmake --build build --parallel 2
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure --no-tests=error --output-junit test-results.xml
+
+      - name: Package runtime
+        run: |
+          mkdir -p dist/lib
+          cp build/EchterWachter dist/
+          find build -type f -name '*.so*' -exec cp -t dist/lib/ {} +
+          cp scripts/run-bot.sh dist/
+          DISCORD_TOKEN=offline-module-check ./dist/run-bot.sh --check-modules
+          tar -czf EchterWachter-${{ matrix.compiler }}-linux-x86_64.tar.gz -C dist .
+
+      - name: Upload runtime
+        uses: actions/upload-artifact@v4
+        with:
+          name: EchterWachter-${{ matrix.compiler }}-linux-x86_64
+          path: EchterWachter-${{ matrix.compiler }}-linux-x86_64.tar.gz
+          if-no-files-found: error
+
+      - name: Upload test diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tests-${{ matrix.compiler }}
+          path: |
+            build/test-results.xml
+            build/Testing/Temporary/LastTest.log
+          if-no-files-found: ignore

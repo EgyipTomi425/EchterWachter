@@ -15,8 +15,12 @@ FetchContent_Declare(
         DPP
             GIT_REPOSITORY https://github.com/brainboxdotcc/DPP.git
             GIT_TAG master
+            SYSTEM
 )
+set(DPP_BUILD_TEST OFF CACHE BOOL "Do not build D++ examples" FORCE)
+set(DPP_INSTALL OFF CACHE BOOL "Do not install the embedded D++ dependency" FORCE)
 FetchContent_MakeAvailable(DPP)
+include("${PROJECT_SOURCE_DIR}/cmake/dpp-json-modules.cmake")
 
 set(BUILD_SHARED_LIBS ${_old_BSL} CACHE BOOL "Restore previous BUILD_SHARED_LIBS" FORCE)
 

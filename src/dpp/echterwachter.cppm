@@ -5,6 +5,10 @@ module;
 #include <string>
 #include <iostream>
 #include <functional>
+#include <optional>
+#include <memory>
+#include <stdexcept>
+#include <vector>
 #include <unordered_map>
 #include <curl/curl.h>
 
@@ -139,7 +143,7 @@ export struct int_param
     }
 };
 
-export constexpr int_param operator"" _int(const char* str, size_t)
+export constexpr int_param operator""_int(const char* str, size_t)
 {
     return int_param(str);
 }
@@ -159,7 +163,7 @@ export struct string_param
     }
 };
 
-export constexpr string_param operator"" _str(const char* str, size_t)
+export constexpr string_param operator""_str(const char* str, size_t)
 {
     return string_param(str);
 }
@@ -179,7 +183,7 @@ export struct file_param
     }
 };
 
-export constexpr file_param operator"" _file(const char* str, size_t)
+export constexpr file_param operator""_file(const char* str, size_t)
 {
     return file_param(str);
 }
@@ -191,7 +195,8 @@ size_t static write_to_vector(void* ptr, size_t size, size_t nmemb, void* userda
 {
     auto* buffer = static_cast<std::vector<uint8_t>*>(userdata);
     size_t total = size * nmemb;
-    buffer->insert(buffer->end(), (uint8_t*)ptr, (uint8_t*)ptr + total);
+    auto* bytes = static_cast<uint8_t*>(ptr);
+    buffer->insert(buffer->end(), bytes, bytes + total);
     return total;
 }
 

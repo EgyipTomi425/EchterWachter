@@ -1,8 +1,8 @@
-set(SHARED_BUILD ON)
+option(SHARED_BUILD "Build shared project libraries" ON)
 
-set(UTIL ON)
+option(UTIL "Build public utility modules" ON)
 
-set(MUSIC OFF)
-    set(YOUTUBE OFF)
+option(MUSIC "Build music commands" OFF)
+option(YOUTUBE "Build the YouTube module" OFF)
 
-set(CUSTOM ON)
+option(CUSTOM "Build available custom modules" ON)
