@@ -277,6 +277,7 @@ export inline int magic_number = bot_add();
 export void register_examples();
 export void ping(const dpp::slashcommand_t& event);
 export void ping_local(const dpp::slashcommand_t& event);
+export bool connect_voice_member(dpp::snowflake guild_id, dpp::snowflake user_id, bool recover_stale = false);
 export void join(const dpp::slashcommand_t& event);
 export void leave(const dpp::slashcommand_t& event);
 export void ping_group_ping(const dpp::slashcommand_t& event);

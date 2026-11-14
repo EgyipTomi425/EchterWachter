@@ -12,3 +12,8 @@ add_test(NAME module_initialization COMMAND EchterWachter --check-modules)
 set_tests_properties(module_initialization PROPERTIES
     ENVIRONMENT "DISCORD_TOKEN=offline-module-check"
     TIMEOUT 10)
+
+add_executable(voice_connection_tests voice_connection_tests.cpp)
+target_include_directories(voice_connection_tests PRIVATE ../src/dpp)
+add_test(NAME voice_connection COMMAND voice_connection_tests)
+set_tests_properties(voice_connection PROPERTIES TIMEOUT 5)

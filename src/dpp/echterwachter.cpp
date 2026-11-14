@@ -2,6 +2,7 @@ module;
 
 #include <dpp/dpp.h>
 #include "gateway_health.hpp"
+#include "voice_connection.hpp"
 #include "command_registry.hpp"
 #include <condition_variable>
 #include <cstdint>
@@ -343,6 +344,27 @@ void ping_local(const dpp::slashcommand_t& event)
     event.reply("Local Pong!");
 }
 
+bool connect_voice_member(dpp::snowflake guild_id,dpp::snowflake user_id,bool recover_stale)
+{
+    auto* guild=dpp::find_guild(guild_id);
+    auto* shard=guild ? bot.get_shard(guild->shard_id) : nullptr;
+    if(!guild || !shard) return false;
+    const auto member=guild->voice_members.find(user_id);
+    if(member==guild->voice_members.end() || !member->second.channel_id) return false;
+    const auto self=guild->voice_members.find(bot.me.id);
+    const dpp::snowflake reported_channel=self==guild->voice_members.end()?dpp::snowflake{}:self->second.channel_id;
+    std::shared_ptr<dpp::voiceconn> stale;
+    if(recover_stale) {
+        std::unique_lock lock(shard->voice_mutex);
+        stale=echterwachter_detail::take_stale_voice_connection(shard->connecting_voice_channels,guild_id,
+            [reported_channel](const dpp::voiceconn& connection) {
+                return reported_channel==connection.channel_id && connection.voiceclient && connection.voiceclient->is_ready() && connection.voiceclient->is_connected();
+            });
+    }
+    stale.reset();
+    return guild->connect_member_voice(bot,user_id);
+}
+
 void join(const dpp::slashcommand_t& event)
 {
     dpp::snowflake user_id = event.command.get_issuing_user().id;
@@ -366,13 +388,13 @@ void join(const dpp::slashcommand_t& event)
     }
 
     dpp::guild* g = guild_id != 0 ? dpp::find_guild(guild_id) : nullptr;
-    if (!g || !g->connect_member_voice(bot, user_id))
+    if (!g || !connect_voice_member(guild_id, user_id, true))
     {
-        event.reply(dpp::message("Nem vagy hangcsatornaban ezen a szerveren!").set_flags(dpp::m_ephemeral));
+        event.reply(dpp::message("You are not in a voice channel on this server.").set_flags(dpp::m_ephemeral));
         return;
     }
 
-    event.reply(dpp::message("Csatlakoztam a hangcsatornadhoz!").set_flags(dpp::m_ephemeral));
+    event.reply(dpp::message("Voice connection requested for your channel.").set_flags(dpp::m_ephemeral));
 }
 
 void leave(const dpp::slashcommand_t& event)
@@ -400,7 +422,7 @@ void leave(const dpp::slashcommand_t& event)
         dpp::guild* g = dpp::find_guild(guild_id);
         if (!g || !in_same_channel(guild_id, g))
         {
-            event.reply(dpp::message("Nem vagy velem egy hangcsatornaban!").set_flags(dpp::m_ephemeral));
+            event.reply(dpp::message("You must be in the same voice channel as the bot.").set_flags(dpp::m_ephemeral));
             return;
         }
     }
@@ -423,13 +445,13 @@ void leave(const dpp::slashcommand_t& event)
 
         if (!found)
         {
-            event.reply(dpp::message("Nem vagy velem egy hangcsatornaban!").set_flags(dpp::m_ephemeral));
+            event.reply(dpp::message("You must be in the same voice channel as the bot.").set_flags(dpp::m_ephemeral));
             return;
         }
     }
 
     shard->disconnect_voice(guild_id);
-    event.reply(dpp::message("Kileptem a hangcsatornabol!").set_flags(dpp::m_ephemeral));
+    event.reply(dpp::message("Disconnected from the voice channel.").set_flags(dpp::m_ephemeral));
 }
 
 void ping_group_ping(const dpp::slashcommand_t& event)
