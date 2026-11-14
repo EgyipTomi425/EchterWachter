@@ -41,6 +41,9 @@ int main(int argc, char* argv[])
     }
 
     start_bot(true); // If you use it too often, you will reach the rate limit
+#ifdef VOICE
+    vc::shutdown();
+#endif
 
     return 0;
 }
