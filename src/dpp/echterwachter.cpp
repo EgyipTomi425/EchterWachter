@@ -350,7 +350,7 @@ bool connect_voice_member(dpp::snowflake guild_id,dpp::snowflake user_id,bool re
     auto* shard=guild ? bot.get_shard(guild->shard_id) : nullptr;
     if(!guild || !shard) return false;
     const auto member=guild->voice_members.find(user_id);
-    if(member==guild->voice_members.end() || !member->second.channel_id) return false;
+    if(member==guild->voice_members.end() || member->second.channel_id.empty()) return false;
     const auto self=guild->voice_members.find(bot.me.id);
     const dpp::snowflake reported_channel=self==guild->voice_members.end()?dpp::snowflake{}:self->second.channel_id;
     std::shared_ptr<dpp::voiceconn> stale;
