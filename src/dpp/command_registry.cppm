@@ -1,4 +1,4 @@
-#pragma once
+module;
 
 #include <algorithm>
 #include <cstdint>
@@ -8,8 +8,13 @@
 #include <utility>
 #include <vector>
 
-namespace echterwachter_detail
+export module echterwachter.command_registry;
+
+// Scope-aware slash command bookkeeping. Templates over the entry type keep it
+// free of D++, so the same rules are tested without a Discord connection.
+export namespace echterwachter_detail
 {
+    // Registering the same name/type/scope again replaces its handler.
     template<typename Entry>
     void upsert_command(std::vector<Entry>& entries, const Entry& command)
     {
@@ -31,6 +36,7 @@ namespace echterwachter_detail
         std::unordered_map<std::uint64_t, std::vector<Command>> guilds;
     };
 
+    // Desired remote state: one global list and one list per guild.
     template<typename Entry>
     auto group_commands(const std::vector<Entry>& entries)
     {
@@ -46,6 +52,7 @@ namespace echterwachter_detail
         return result;
     }
 
+    // A matching guild command takes precedence over the global one.
     template<typename Entry, typename Type>
     const Entry* find_command(const std::vector<Entry>& entries, std::string_view name,
                               Type type, std::uint64_t guild_id)

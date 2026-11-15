@@ -1,9 +1,11 @@
-#include "command_registry.hpp"
-
+#include <cstdint>
 #include <cstdlib>
 #include <iostream>
 #include <optional>
 #include <string>
+#include <vector>
+
+import echterwachter.command_registry;
 
 struct Command { std::string name; int type = 1; };
 struct Entry { Command cmd; std::optional<uint64_t> guild_id; int callback; };

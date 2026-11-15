@@ -277,7 +277,13 @@ export inline int magic_number = bot_add();
 export void register_examples();
 export void ping(const dpp::slashcommand_t& event);
 export void ping_local(const dpp::slashcommand_t& event);
+// Asks the bot to be in `user_id`'s voice channel. With `recover_stale` a
+// healthy connection is kept, one still handshaking is left alone, and any
+// stale state (dead transport, ghost membership, another channel) is rebuilt
+// through an explicit leave. Returns false when the user is not in voice.
 export bool connect_voice_member(dpp::snowflake guild_id, dpp::snowflake user_id, bool recover_stale = false);
+// Same, but a handshake which did not complete is no longer waited for.
+export bool reconnect_voice_member(dpp::snowflake guild_id, dpp::snowflake user_id);
 export void join(const dpp::slashcommand_t& event);
 export void leave(const dpp::slashcommand_t& event);
 export void ping_group_ping(const dpp::slashcommand_t& event);

@@ -1,9 +1,7 @@
 module;
 
 #include <dpp/dpp.h>
-#include "gateway_health.hpp"
-#include "voice_connection.hpp"
-#include "command_registry.hpp"
+#include <chrono>
 #include <condition_variable>
 #include <cstdint>
 #include <ctime>
@@ -19,6 +17,10 @@ module;
 #include <utility>
 
 module echterwachter;
+
+import echterwachter.command_registry;
+import echterwachter.gateway_health;
+import echterwachter.voice_connection;
 
 void add_command(const BotCommand& bc)
 {
@@ -44,6 +46,172 @@ namespace
     std::deque<std::string> log_queue;
     std::mutex command_sync_mutex;
     std::unordered_set<uint64_t> synced_guilds;
+
+    // --- Voice connection recovery -------------------------------------------
+    // A connection handshake normally completes within a few seconds. Inside
+    // this window a repeated request waits for it instead of restarting it.
+    constexpr auto voice_handshake_grace = std::chrono::seconds(15);
+
+    struct VoiceRequest
+    {
+        dpp::snowflake channel;
+        std::chrono::steady_clock::time_point at;
+    };
+
+    // The join half of a leave-then-join recovery, waiting for Discord to
+    // confirm the leave (or for the fallback timer).
+    struct PendingVoiceJoin
+    {
+        dpp::snowflake user;
+        uint64_t ticket = 0;
+        dpp::timer timer = 0;
+    };
+
+    std::mutex voice_request_mutex;
+    std::unordered_map<dpp::snowflake, VoiceRequest> voice_requests;
+    std::unordered_map<dpp::snowflake, PendingVoiceJoin> pending_voice_joins;
+    uint64_t next_voice_ticket = 0;
+
+    // Tells Discord the bot leaves voice on this guild. With a library
+    // connection D++ sends the update and closes its transport; a ghost
+    // membership without one needs the gateway message itself.
+    bool send_voice_leave(dpp::discord_client& shard, const dpp::snowflake guild_id, const bool has_connection)
+    {
+        if (has_connection)
+        {
+            shard.disconnect_voice(guild_id);
+            return true;
+        }
+        if (shard.protocol != dpp::ws_json)
+            return false;
+        shard.queue_message("{\"op\":4,\"d\":{\"guild_id\":\"" + guild_id.str() +
+            "\",\"channel_id\":null,\"self_mute\":false,\"self_deaf\":false}}");
+        return true;
+    }
+
+    void complete_voice_join(const dpp::snowflake guild_id, const uint64_t ticket)
+    {
+        dpp::snowflake user;
+        dpp::timer timer = 0;
+        {
+            std::lock_guard lock(voice_request_mutex);
+            const auto found = pending_voice_joins.find(guild_id);
+            if (found == pending_voice_joins.end() || found->second.ticket != ticket)
+                return;
+            user = found->second.user;
+            timer = found->second.timer;
+            pending_voice_joins.erase(found);
+        }
+        if (timer != 0)
+            bot.stop_timer(timer);
+        if (auto* guild = dpp::find_guild(guild_id))
+            guild->connect_member_voice(bot, user);
+    }
+
+    void schedule_voice_join(const dpp::snowflake guild_id, const dpp::snowflake user_id, const uint64_t seconds)
+    {
+        uint64_t ticket = 0;
+        dpp::timer previous = 0;
+        {
+            std::lock_guard lock(voice_request_mutex);
+            auto& pending = pending_voice_joins[guild_id];
+            previous = std::exchange(pending.timer, 0);
+            pending.user = user_id;
+            ticket = pending.ticket = ++next_voice_ticket;
+        }
+        if (previous != 0)
+            bot.stop_timer(previous);
+        // One-shot fallback: Discord sends no voice state update when it did
+        // not consider the bot connected in the first place.
+        const dpp::timer timer = bot.start_timer([guild_id, ticket](const dpp::timer handle)
+        {
+            bot.stop_timer(handle);
+            complete_voice_join(guild_id, ticket);
+        }, seconds);
+        std::lock_guard lock(voice_request_mutex);
+        const auto found = pending_voice_joins.find(guild_id);
+        if (found != pending_voice_joins.end() && found->second.ticket == ticket)
+            found->second.timer = timer;
+    }
+
+    // The bot's own voice state was cleared: a pending recovery can join now.
+    void on_own_voice_state(const dpp::voice_state_update_t& event)
+    {
+        if (event.state.user_id != bot.me.id || !event.state.channel_id.empty())
+            return;
+        uint64_t ticket = 0;
+        {
+            std::lock_guard lock(voice_request_mutex);
+            const auto found = pending_voice_joins.find(event.state.guild_id);
+            if (found == pending_voice_joins.end())
+                return;
+            ticket = found->second.ticket;
+        }
+        complete_voice_join(event.state.guild_id, ticket);
+    }
+
+    bool request_voice(const dpp::snowflake guild_id, const dpp::snowflake user_id, const bool recover, const bool force)
+    {
+        auto* guild = dpp::find_guild(guild_id);
+        auto* shard = guild ? bot.get_shard(guild->shard_id) : nullptr;
+        if (!guild || !shard)
+            return false;
+        const auto member = guild->voice_members.find(user_id);
+        if (member == guild->voice_members.end() || member->second.channel_id.empty())
+            return false;
+        if (!recover)
+            return guild->connect_member_voice(bot, user_id);
+
+        const dpp::snowflake target = member->second.channel_id;
+        const auto self = guild->voice_members.find(bot.me.id);
+        const dpp::snowflake reported = self == guild->voice_members.end() ? dpp::snowflake{} : self->second.channel_id;
+
+        echterwachter_detail::VoiceObservation seen;
+        {
+            std::shared_lock lock(shard->voice_mutex);
+            const auto found = shard->connecting_voice_channels.find(guild_id);
+            if (found != shard->connecting_voice_channels.end())
+            {
+                seen.has_connection = true;
+                seen.same_channel = found->second->channel_id == target;
+                const auto& client = found->second->voiceclient;
+                seen.transport_ready = client && client->is_ready() && client->is_connected();
+            }
+        }
+        seen.reported_in_target = reported == target;
+        seen.reported_in_guild = !reported.empty();
+        const auto now = std::chrono::steady_clock::now();
+        auto action = echterwachter_detail::VoiceAction::connect;
+        {
+            std::lock_guard lock(voice_request_mutex);
+            if (const auto pending = pending_voice_joins.find(guild_id); pending != pending_voice_joins.end())
+            {
+                // The scheduled join follows the latest requester.
+                seen.join_pending = true;
+                pending->second.user = user_id;
+            }
+            const auto request = voice_requests.find(guild_id);
+            seen.recently_requested = !force && request != voice_requests.end()
+                && request->second.channel == target && now - request->second.at < voice_handshake_grace;
+            action = echterwachter_detail::next_voice_action(seen);
+            if (action == echterwachter_detail::VoiceAction::keep || action == echterwachter_detail::VoiceAction::wait)
+                return true;
+            voice_requests[guild_id] = VoiceRequest{target, now};
+        }
+
+        if (action == echterwachter_detail::VoiceAction::rejoin
+            && send_voice_leave(*shard, guild_id, seen.has_connection))
+        {
+            bot.log(dpp::ll_info, "Voice: rebuilding the connection on guild " + guild_id.str() +
+                " (connection=" + (seen.has_connection ? "yes" : "no") + ", transport=" + (seen.transport_ready ? "ready" : "down") +
+                ", reported=" + (seen.reported_in_guild ? "yes" : "no") + ")");
+            // Joining before Discord confirms the leave would let that
+            // confirmation tear the new connection down again.
+            schedule_voice_join(guild_id, user_id, seen.reported_in_guild ? 2 : 1);
+            return true;
+        }
+        return guild->connect_member_voice(bot, user_id);
+    }
 
     void sync_guild_commands(const dpp::snowflake guild_id)
     {
@@ -216,6 +384,8 @@ void start_bot(bool register_new_commands)
         });
     }
 
+    bot.on_voice_state_update(on_own_voice_state);
+
     // A plain D++ timer: it is dispatched from tick_timers() inside the socket
     // engine's epoll loop, so between ticks the thread sleeps in epoll_wait -
     // no polling and no spinning.
@@ -344,25 +514,14 @@ void ping_local(const dpp::slashcommand_t& event)
     event.reply("Local Pong!");
 }
 
-bool connect_voice_member(dpp::snowflake guild_id,dpp::snowflake user_id,bool recover_stale)
+bool connect_voice_member(dpp::snowflake guild_id, dpp::snowflake user_id, bool recover_stale)
 {
-    auto* guild=dpp::find_guild(guild_id);
-    auto* shard=guild ? bot.get_shard(guild->shard_id) : nullptr;
-    if(!guild || !shard) return false;
-    const auto member=guild->voice_members.find(user_id);
-    if(member==guild->voice_members.end() || member->second.channel_id.empty()) return false;
-    const auto self=guild->voice_members.find(bot.me.id);
-    const dpp::snowflake reported_channel=self==guild->voice_members.end()?dpp::snowflake{}:self->second.channel_id;
-    std::shared_ptr<dpp::voiceconn> stale;
-    if(recover_stale) {
-        std::unique_lock lock(shard->voice_mutex);
-        stale=echterwachter_detail::take_stale_voice_connection(shard->connecting_voice_channels,guild_id,
-            [reported_channel](const dpp::voiceconn& connection) {
-                return reported_channel==connection.channel_id && connection.voiceclient && connection.voiceclient->is_ready() && connection.voiceclient->is_connected();
-            });
-    }
-    stale.reset();
-    return guild->connect_member_voice(bot,user_id);
+    return request_voice(guild_id, user_id, recover_stale, false);
+}
+
+bool reconnect_voice_member(dpp::snowflake guild_id, dpp::snowflake user_id)
+{
+    return request_voice(guild_id, user_id, true, true);
 }
 
 void join(const dpp::slashcommand_t& event)
@@ -407,14 +566,19 @@ void leave(const dpp::slashcommand_t& event)
     // `user_id` is sitting in that same channel - this is what gates /leave,
     // so someone can't disconnect the bot out of a channel they aren't even
     // in.
+    // A ghost membership (Discord shows the bot although no connection exists
+    // any more) counts as well, otherwise nobody could ever remove it.
     auto in_same_channel = [&](dpp::snowflake gid, dpp::guild* g)
     {
-        dpp::voiceconn* v = shard->get_voice(gid);
-        if (!v)
+        auto vsi = g->voice_members.find(user_id);
+        if (vsi == g->voice_members.end() || vsi->second.channel_id.empty())
             return false;
 
-        auto vsi = g->voice_members.find(user_id);
-        return vsi != g->voice_members.end() && vsi->second.channel_id == v->channel_id;
+        if (dpp::voiceconn* v = shard->get_voice(gid))
+            return vsi->second.channel_id == v->channel_id;
+
+        auto self = g->voice_members.find(bot.me.id);
+        return self != g->voice_members.end() && self->second.channel_id == vsi->second.channel_id;
     };
 
     if (guild_id != 0)
@@ -450,7 +614,13 @@ void leave(const dpp::slashcommand_t& event)
         }
     }
 
-    shard->disconnect_voice(guild_id);
+    {
+        // A pending recovery must not bring the bot straight back.
+        std::lock_guard lock(voice_request_mutex);
+        pending_voice_joins.erase(guild_id);
+        voice_requests.erase(guild_id);
+    }
+    send_voice_leave(*shard, guild_id, shard->get_voice(guild_id) != nullptr);
     event.reply(dpp::message("Disconnected from the voice channel.").set_flags(dpp::m_ephemeral));
 }
 

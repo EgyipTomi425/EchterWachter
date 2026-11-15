@@ -72,6 +72,29 @@ the seconds/milliseconds mismatch in the D++ version observed during diagnosis. 
 register commands again. Logging uses a bounded background queue so a slow
 output sink cannot indefinitely grow memory or block gateway logging.
 
+## Core modules
+
+The bot's own code is written as named C++ modules (`.cppm` interface, `.cpp`
+implementation) without project headers. `echterwachter_core` holds the pure decision logic the
+bot module builds on. It has no D++ dependency, so `ctest` exercises it without a
+Discord token:
+
+| Module | Responsibility |
+| --- | --- |
+| `echterwachter.gateway_health` | Heartbeat-ACK watchdog state machine |
+| `echterwachter.command_registry` | Scope-aware command upsert, grouping and routing |
+| `echterwachter.voice_connection` | Keep / wait / connect / rejoin decision for a voice request |
+
+`connect_voice_member()` (used by `/join` and the voice module) applies the last
+one. A healthy connection is kept and a handshake started within 15 seconds is
+left alone. Every stale state is rebuilt through an explicit leave followed by a
+join, because Discord issues new voice credentials only when the bot's voice
+state really changes: a connected client Discord no longer reports (the bot
+vanished from the channel after a new gateway session), a dead transport, a ghost
+membership without a connection, or another channel. The join runs when Discord
+confirms the leave, with a 1-2 second fallback timer. `/leave` also clears a ghost
+membership.
+
 ## Command synchronization
 
 The module registry is the source of truth. With `start_bot(true)`, startup uses
@@ -90,7 +113,8 @@ command synchronization within the same process.
 
 See the [Discord bulk overwrite API](https://docs.discord.com/developers/interactions/application-commands#bulk-overwrite-global-application-commands).
 `ctest` checks heartbeat recovery, command scope/routing, removal of registry
-entries, and inline module initialization without a live Discord connection.
+entries, voice recovery decisions and inline module initialization without a live
+Discord connection.
 
 ## Optional private SDK
 

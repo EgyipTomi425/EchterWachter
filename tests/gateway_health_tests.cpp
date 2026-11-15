@@ -1,7 +1,8 @@
-#include "gateway_health.hpp"
-
+#include <chrono>
 #include <cstdlib>
 #include <iostream>
+
+import echterwachter.gateway_health;
 
 using echterwachter_detail::GatewayHealth;
 using namespace std::chrono_literals;

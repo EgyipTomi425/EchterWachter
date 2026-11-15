@@ -1,10 +1,10 @@
 add_executable(gateway_health_tests gateway_health_tests.cpp)
-target_include_directories(gateway_health_tests PRIVATE ../src/dpp)
+target_link_libraries(gateway_health_tests PRIVATE echterwachter_core)
 add_test(NAME gateway_health COMMAND gateway_health_tests)
 set_tests_properties(gateway_health PROPERTIES TIMEOUT 5)
 
 add_executable(command_registry_tests command_registry_tests.cpp)
-target_include_directories(command_registry_tests PRIVATE ../src/dpp)
+target_link_libraries(command_registry_tests PRIVATE echterwachter_core)
 add_test(NAME command_registry COMMAND command_registry_tests)
 set_tests_properties(command_registry PROPERTIES TIMEOUT 5)
 
@@ -14,6 +14,6 @@ set_tests_properties(module_initialization PROPERTIES
     TIMEOUT 10)
 
 add_executable(voice_connection_tests voice_connection_tests.cpp)
-target_include_directories(voice_connection_tests PRIVATE ../src/dpp)
+target_link_libraries(voice_connection_tests PRIVATE echterwachter_core)
 add_test(NAME voice_connection COMMAND voice_connection_tests)
 set_tests_properties(voice_connection PROPERTIES TIMEOUT 5)

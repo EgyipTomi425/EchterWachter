@@ -1,3 +1,18 @@
+# Pure gateway, command and voice decision logic as named modules. It has no
+# D++ dependency, so its tests need neither a Discord token nor the cluster.
+add_library(echterwachter_core)
+set_target_properties(echterwachter_core PROPERTIES WINDOWS_EXPORT_ALL_SYMBOLS ON)
+target_sources(echterwachter_core
+        PUBLIC
+        FILE_SET CXX_MODULES FILES
+            command_registry.cppm
+            gateway_health.cppm
+            voice_connection.cppm
+        PRIVATE
+            gateway_health.cpp
+            voice_connection.cpp
+)
+
 add_library(echterwachter)
 
 # Windows
@@ -32,6 +47,6 @@ target_sources(echterwachter
             echterwachter.cpp
 )
 
-target_link_libraries(echterwachter PUBLIC dpp CURL::libcurl)
+target_link_libraries(echterwachter PUBLIC dpp CURL::libcurl PRIVATE echterwachter_core)
 
 target_compile_definitions(echterwachter PUBLIC ECHTERWACHTER)
